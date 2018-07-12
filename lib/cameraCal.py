@@ -3,11 +3,12 @@
 cameraCal.py: Python class that handles camera calibrations operations
 """
 
-import numpy as np
-import cv2
 import glob
 import os
 import pickle
+
+import cv2
+import numpy as np
 
 
 class CameraCal:
@@ -77,13 +78,9 @@ class CameraCal:
                 if ret:
                     objpoints.append(objp)
                     imgpoints.append(corners)
-                    cv2.drawChessboardCorners(img2,
-                                              (corners.shape[1],
-                                               corners.shape[0]),
-                                              corners, ret)
-                    ret, self.mtx, self.dist, self.rvecs, self.tvecs = \
-                        cv2.calibrateCamera(objpoints, imgpoints,
-                                            self.img_size, None, None)
+                    cv2.drawChessboardCorners(img2, (corners.shape[1], corners.shape[0]), corners, ret)
+                    ret, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(objpoints, imgpoints,
+                                                                                           self.img_size, None, None)
 
             # done and found all chessboard corners.
             # now time to save the results into a pickle file for later

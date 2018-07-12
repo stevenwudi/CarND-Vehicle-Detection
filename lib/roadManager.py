@@ -4,6 +4,7 @@ Python class that handles image, projection and lanes, lines and vehicle propaga
 """
 import cv2
 import numpy as np
+from matplotlib import pyplot as plt
 
 from lib.imageFilters import ImageFilters
 from lib.lane import Lane
@@ -187,16 +188,10 @@ class RoadManager:
         faint = (curLane.maskvalue / 128)
         if self.resized:
             faint *= 0.75
-        if ((faint > 0.5 or
-                 (self.resized and faint > 0.4)) and
-                curLane.adjacentRight and
-                    curLane.adjacentRLane is None):
+        if (faint > 0.5 or (self.resized and faint > 0.4)) and curLane.adjacentRight and curLane.adjacentRLane is None:
             # print("threshold:", faint)
-            newRightLine = Line(self.right, self.x, self.y,
-                                self.projMgr.projectedX,
-                                self.projMgr.projectedY, self.maskDelta)
-            newRightLine.createPolyFitRight(
-                self.curImgFtr, curLane, faint=faint, resized=self.resized)
+            newRightLine = Line(self.right, self.x, self.y, self.projMgr.projectedX, self.projMgr.projectedY, self.maskDelta)
+            newRightLine.createPolyFitRight(self.curImgFtr, curLane, faint=faint, resized=self.resized)
             if newRightLine.detected and newRightLine.lineClassified:
                 # print("adding right lane")
                 newRightLine.findBottomOfLine(self.curImgFtr)
@@ -213,8 +208,7 @@ class RoadManager:
                 newLane.adjacentLeft = True
                 newLane.adjacentRight = newRightLine.adjacentRight
                 newLane.leftprojection = curLane.rightprojection
-                newLane.rightprojection = newRightLine.applyLineMask(
-                    self.curImgFtr.getEdgeProjection())
+                newLane.rightprojection = newRightLine.applyLineMask(self.curImgFtr.getEdgeProjection())
                 self.lanes.append(newLane)
                 curLane.adjacentRLane = newLane
                 curLane.adjacentRight = True
@@ -280,8 +274,7 @@ class RoadManager:
             self.initialGradient = self.projMgr.curGradient
             if self.curImgFtr.horizonFound and self.projMgr.curGradient is not None:
                 self.roadHorizonGap = (self.projMgr.curGradient - self.curImgFtr.roadhorizon)
-                newTop = self.curImgFtr.roadhorizon + self.roadHorizonGap
-                self.projMgr.setSrcTop(newTop - self.curImgFtr.visibility, self.curImgFtr.visibility)
+                self.projMgr.setSrcTop(self.projMgr.curGradient - self.curImgFtr.visibility, self.curImgFtr.visibility)
 
             # find main lane lines left and right
             self.lastNEdges = self.curImgFtr.curRoadEdge
@@ -289,15 +282,11 @@ class RoadManager:
 
             # find lane lines left and right
             curLane = mainLane
-            while (curLane is not None and
-                       curLane.adjacentLeft and
-                           curLane.adjacentLLane is None):
+            while curLane is not None and curLane.adjacentLeft and curLane.adjacentLLane is None:
                 self.addLaneLeft(curLane)
                 curLane = curLane.adjacentLLane
             curLane = mainLane
-            while (curLane is not None and
-                       curLane.adjacentRight and
-                           curLane.adjacentRLane is None):
+            while curLane is not None and curLane.adjacentRight and curLane.adjacentRLane is None:
                 self.addLaneRight(curLane)
                 curLane = curLane.adjacentRLane
         else:
@@ -344,9 +333,39 @@ class RoadManager:
         self.lineBasePos = mainLane.getLineBasePos()
         self.radiusOfCurvature, self.roadStraight = mainLane.getRadiusOfCurvature()
 
-        # Scan for vehicles
+        # create road mask polygon for reprojection back onto perspective view.
+        roadmask = np.zeros((self.projMgr.projectedY, self.projMgr.projectedX), dtype=np.uint8)
+        leftLinemask = np.zeros((self.projMgr.projectedY, self.projMgr.projectedX), dtype=np.uint8)
+        rightLinemask = np.zeros((self.projMgr.projectedY, self.projMgr.projectedX), dtype=np.uint8)
+        for i in range(len(self.lanes)):
+            self.lanes[i].drawLanePoly(roadmask)
+            leftLinemask = self.curImgFtr.miximg(leftLinemask, self.lanes[i].leftprojection, 1.0, 1.0)
+            rightLinemask = self.curImgFtr.miximg(rightLinemask, self.lanes[i].rightprojection, 1.0, 1.0)
 
-    def findVehicles(self):
+        self.roadsurface[:, :, 0] = leftLinemask
+        self.roadsurface[:, :, 1] = roadmask
+        self.roadsurface[:, :, 2] = rightLinemask
+
+        # generate wireframe scanner rendering.
+        self.specialProjectedEffects = self.curImgFtr.miximg(self.roadsurface * 0, self.specialProjectedEffects, 1.0, 0.9)
+        self.specialPerspectiveEffects = self.curImgFtr.miximg(self.specialPerspectiveEffects * 0, self.specialPerspectiveEffects, 1.0, 0.9)
+        self.sweepLane = self.projMgr.sweep(self.specialProjectedEffects, self.curFrame, self.lines)
+
+        self.roadsquares = self.projMgr.wireframe(self.roadsurface, self.curFrame, self.lanes[self.mainLaneIdx])
+        self.roadsurface = self.curImgFtr.miximg(self.roadsurface, self.specialProjectedEffects, 1.0, 1.0)
+        self.projMgr.sweep(self.roadsurface, self.curFrame, self.lines)
+
+        # create image lane image
+        self.curImgFtr.lane_vis = np.copy(self.curImgFtr.curImage.astype(np.uint8))
+        self.projMgr.drawRoadSquares_tight(self.curImgFtr.lane_vis, self.roadsquares)
+        plt.imshow(self.curImgFtr.lane_vis)
+
+    def findVehicles(self, resized=False):
+        """
+        Scan for vehicles
+        :param resized:
+        :return:
+        """
         self.vehicleScan = np.copy(self.curImgFtr.getRoadProjection())
         if self.curFrame > 1:
             if self.curFrame == 2:
@@ -363,8 +382,7 @@ class RoadManager:
                 self.lines, self.mainLaneIdx, False)
             allPossibleWindows = self.roadGrid.getAllWindows()
         else:
-            self.roadGrid = self.vehicleDetection.slidingWindows(
-                self.lines, self.mainLaneIdx, True)
+            self.roadGrid = self.vehicleDetection.slidingWindows(self.lines, self.mainLaneIdx, True)
             allPossibleWindows = self.roadGrid.getAllWindows()
 
         if self.scrType & 16 == 16:
@@ -431,29 +449,6 @@ class RoadManager:
             for vehIdx in range(len(self.vehicles)):
                 self.vehicles[vehIdx].vehIdx = vehIdx
 
-        # create road mask polygon for reprojection back onto perspective view.
-        roadmask = np.zeros((self.projMgr.projectedY, self.projMgr.projectedX), dtype=np.uint8)
-
-        leftLinemask = np.zeros((self.projMgr.projectedY, self.projMgr.projectedX), dtype=np.uint8)
-        rightLinemask = np.zeros((self.projMgr.projectedY, self.projMgr.projectedX), dtype=np.uint8)
-        for i in range(len(self.lanes)):
-            self.lanes[i].drawLanePoly(roadmask)
-            leftLinemask = self.curImgFtr.miximg(leftLinemask, self.lanes[i].leftprojection, 1.0, 1.0)
-            rightLinemask = self.curImgFtr.miximg(rightLinemask, self.lanes[i].rightprojection, 1.0, 1.0)
-
-        self.roadsurface[:, :, 0] = leftLinemask
-        self.roadsurface[:, :, 1] = roadmask
-        self.roadsurface[:, :, 2] = rightLinemask
-
-        # generate wireframe scanner rendering.
-        self.specialProjectedEffects = self.curImgFtr.miximg(self.roadsurface * 0, self.specialProjectedEffects, 1.0, 0.9)
-        self.specialPerspectiveEffects = self.curImgFtr.miximg(self.specialPerspectiveEffects * 0,self.specialPerspectiveEffects, 1.0, 0.9)
-        self.sweepLane = self.projMgr.sweep(self.specialProjectedEffects, self.curFrame, self.lines)
-
-        self.roadsquares = self.projMgr.wireframe(self.roadsurface, self.curFrame, self.lanes[self.mainLaneIdx])
-        self.roadsurface = self.curImgFtr.miximg(self.roadsurface, self.specialProjectedEffects, 1.0, 1.0)
-        self.projMgr.sweep(self.roadsurface, self.curFrame, self.lines)
-
         # draw the possible vehicles detected
         self.vehicleDetection.draw_boxes(self.roadsurface, self.possibleVehicleWindows)
         self.vehicleDetection.draw_boxes(self.roadsurface, self.hiddenVehicleWindows, color=(255, 0, 0))
@@ -474,15 +469,14 @@ class RoadManager:
         # print("self.curImgFtr.curImage:", self.curImgFtr.curImage.shape)
 
         # create the final image
-        self.final = self.curImgFtr.miximg(
-            self.curImgFtr.curImage, self.roadunwarped, 0.95, 0.75)
+        self.final = self.curImgFtr.miximg(self.curImgFtr.curImage, self.roadunwarped, 0.95, 0.75)
 
         # add vehicle detection and tracking visuals
         font = cv2.FONT_HERSHEY_COMPLEX
+        # TODO: Wudi comment below
         self.projMgr.drawRoadSquares(self.final, self.roadsquares)
 
-        self.final = self.curImgFtr.miximg(
-            self.final, self.specialPerspectiveEffects, 1.0, 1.0)
+        self.final = self.curImgFtr.miximg(self.final, self.specialPerspectiveEffects, 1.0, 1.0)
 
         # vehicle info - left or right side?
         if self.mainLaneIdx == 0:
@@ -668,12 +662,6 @@ class RoadManager:
                         mainLane.lines[mainLane.right].pixelBasePos, 0)
                 self.vehicleDetection.draw_boxes(
                     self.projMgr.diag3, self.possibleVehicleWindows)
-
-            # let's try to draw some cubes...
-            # self.projMgr.drawAxisOnLane(self.projMgr.diag2)
-            # self.projMgr.drawCalibrationCube(self.projMgr.diag2)
-            # self.projMgr.drawCubes(self.projMgr.diag2,
-            #                        self.possibleVehicleWindows)
 
             self.projMgr.drawRoadSquares(self.projMgr.diag2, self.roadsquares)
 

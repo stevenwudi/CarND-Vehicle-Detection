@@ -142,6 +142,7 @@ class DiagManager:
     ########################################################
     def projectionHD(self):
         projMgr = self.pMgr
+
         # assemble the screen
         diagScreen = projMgr.diag3.astype(np.uint8)
 
@@ -159,16 +160,10 @@ class DiagManager:
 
         # assemble the screen
         diagScreen = np.zeros((1080, 1920, 3), dtype=np.uint8)
-        diagScreen[0:540, 0:960] = cv2.resize(
-            diag2, (960, 540), interpolation=cv2.INTER_AREA)
-        diagScreen[0:540, 960:1920] = cv2.resize(projMgr.diag1.astype(
-            np.uint8), (960, 540), interpolation=cv2.INTER_AREA)
-        diagScreen[540:1080, 0:960] = cv2.resize(np.rot90(
-            projMgr.diag3.astype(np.uint8)), (960, 540),
-            interpolation=cv2.INTER_AREA)
-        diagScreen[540:1080, 960:1920] = cv2.resize(np.rot90(
-            projMgr.diag4.astype(np.uint8)), (960, 540),
-            interpolation=cv2.INTER_AREA)
+        diagScreen[0:540, 0:960] = cv2.resize(diag2, (960, 540), interpolation=cv2.INTER_AREA)
+        diagScreen[0:540, 960:1920] = cv2.resize(projMgr.diag1.astype(np.uint8), (960, 540), interpolation=cv2.INTER_AREA)
+        diagScreen[540:1080, 0:960] = cv2.resize(np.rot90(projMgr.diag3.astype(np.uint8)), (960, 540), interpolation=cv2.INTER_AREA)
+        diagScreen[540:1080, 960:1920] = cv2.resize(np.rot90(projMgr.diag4.astype(np.uint8)), (960, 540), interpolation=cv2.INTER_AREA)
 
         return diagScreen
 

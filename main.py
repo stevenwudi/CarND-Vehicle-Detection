@@ -15,7 +15,7 @@ from lib.cameraCal import CameraCal
 def process_road_image(img, roadMgr, diagMgr, scrType=0, debug=False, resized=False):
     # Run the functions
     roadMgr.findLanes(img, resized=resized)
-    roadMgr.findVehicles()
+    #roadMgr.findVehicles(resized=resized)
 
     # debug/diagnostics requested
     if debug:

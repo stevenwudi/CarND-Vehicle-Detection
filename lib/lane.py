@@ -91,14 +91,12 @@ class Lane:
 
     # function to calculate radius of curvature measurements
     def getRadiusOfCurvature(self):
-        if self.lines[self.left].radiusOfCurvature is None or \
-                        self.lines[self.right].radiusOfCurvature is None:
+        if self.lines[self.left].radiusOfCurvature is None or self.lines[self.right].radiusOfCurvature is None:
             if self.lines[self.left].radiusOfCurvature is None:
                 if self.lines[self.right].radiusOfCurvature is None:
                     radius = 0.000001
                 else:
-                    radius = self.lines[
-                        self.right].radiusOfCurvature
+                    radius = self.lines[self.right].radiusOfCurvature
             else:
                 if self.lines[self.right].radiusOfCurvature is None:
                     radius = self.lines[self.left].radiusOfCurvature
@@ -106,8 +104,7 @@ class Lane:
                     radius = self.lines[self.left].radiusOfCurvature
                     radius += self.lines[self.right].radiusOfCurvature
                     radius /= 2.0
-        elif self.lines[self.left].radiusOfCurvature > 0.0 and \
-                        self.lines[self.right].radiusOfCurvature > 0.0:
+        elif self.lines[self.left].radiusOfCurvature > 0.0 and self.lines[self.right].radiusOfCurvature > 0.0:
             radius = self.lines[self.left].radiusOfCurvature
             radius += self.lines[self.right].radiusOfCurvature
             radius /= 2.0
@@ -117,8 +114,7 @@ class Lane:
                 roadStraight = True
             else:
                 roadStraight = False
-        elif self.lines[self.left].radiusOfCurvature < 0.0 and \
-                        self.lines[self.right].radiusOfCurvature < 0.0:
+        elif self.lines[self.left].radiusOfCurvature < 0.0 and self.lines[self.right].radiusOfCurvature < 0.0:
             radius = self.lines[self.left].radiusOfCurvature
             radius += self.lines[self.right].radiusOfCurvature
             radius /= 2.0
@@ -156,11 +152,9 @@ class Lane:
         # get the initial points into the lines
         # height used to be half - but with 1920 pixels - we just need 20%
         # now...
-        lefthistogram = np.sum(masked_edge[int(
-            height * 0.80):height, 0:int(width * 0.5)], axis=0)
+        lefthistogram = np.sum(masked_edge[int(height * 0.80):height, 0:int(width * 0.5)], axis=0)
         lefthistogram = lefthistogram.astype(np.float32)
-        righthistogram = np.sum(masked_edge[int(
-            height * 0.80):height, int(width * 0.5):width], axis=0)
+        righthistogram = np.sum(masked_edge[int(height * 0.80):height, int(width * 0.5):width], axis=0)
         righthistogram = righthistogram.astype(np.float32)
         self.leftpos = np.argmax(lefthistogram)
         self.rightpos = np.argmax(righthistogram) + int(width / 2)
@@ -177,32 +171,27 @@ class Lane:
         # fit the left line side
         self.lines[self.left].fitpoly()
         self.leftprojection = self.lines[self.left].applyLineMask(masked_edges)
-        self.lines[self.left].radius_in_meters(
-            self.curImgFtr.throwDistance, self.distance)
+        self.lines[self.left].radius_in_meters(self.curImgFtr.throwDistance, self.distance)
         self.lines[self.left].meters_from_center_of_vehicle(self.distance)
 
         # classify the left line
         if not self.lines[self.left].lineClassified:
             # print("classifying the left line",self.left)
-            self.lines[self.left].getLineStats(
-                self.curImgFtr.getRoadProjection(), resized=resized)
+            self.lines[self.left].getLineStats(self.curImgFtr.getRoadProjection(), resized=resized)
             self.lines[self.left].adjacentRLine = self.lines[self.right]
             self.adjacentLeft = self.lines[self.left].adjacentLeft
             self.adjacentLLane = None
 
         # fit the right side
         self.lines[self.right].fitpoly()
-        self.rightprojection = self.lines[
-            self.right].applyLineMask(masked_edges)
-        self.lines[self.right].radius_in_meters(
-            self.curImgFtr.throwDistance, self.distance)
+        self.rightprojection = self.lines[self.right].applyLineMask(masked_edges)
+        self.lines[self.right].radius_in_meters(self.curImgFtr.throwDistance, self.distance)
         self.lines[self.right].meters_from_center_of_vehicle(self.distance)
 
         # classify the right line
         if not self.lines[self.right].lineClassified:
             # print("classifying the right line",self.right)
-            self.lines[self.right].getLineStats(
-                self.curImgFtr.getRoadProjection(), resized=resized)
+            self.lines[self.right].getLineStats(self.curImgFtr.getRoadProjection(), resized=resized)
             self.lines[self.right].adjacentLLine = self.lines[self.left]
             self.adjacentRight = self.lines[self.right].adjacentRight
             self.adjacentRLane = None

@@ -125,8 +125,7 @@ class ProjectionManager:
         return masked_image
 
     # draw outline of given area
-    def draw_area_of_interest(self, img, areas,
-                              color=[128, 0, 128], thickness=2):
+    def draw_area_of_interest(self, img, areas, color=(128, 0, 128), thickness=2):
         for points in areas:
             for i in range(len(points) - 1):
                 cv2.line(img,
@@ -141,10 +140,7 @@ class ProjectionManager:
                       points[len(points) - 1][1]), color, thickness)
 
     # draw outline of given area
-    def draw_area_of_interest_for_projection(self, img, areas,
-                                             color=[128, 0, 128],
-                                             thickness1=2,
-                                             thickness2=10):
+    def draw_area_of_interest_for_projection(self, img, areas, color=(128, 0, 128), thickness1=2, thickness2=10):
         for points in areas:
             for i in range(len(points) - 1):
                 if i == 0 or i == 1:
@@ -159,7 +155,7 @@ class ProjectionManager:
                      (points[len(points) - 1][0],
                       points[len(points) - 1][1]), color, thickness1)
 
-    def draw_masked_area(self, img, areas, color=[128, 0, 128], thickness=2):
+    def draw_masked_area(self, img, areas, color=(128, 0, 128), thickness=2):
         for points in areas:
             for i in range(len(points) - 1):
                 cv2.line(img,
@@ -173,7 +169,7 @@ class ProjectionManager:
                      (points[len(points) - 1][0],
                       points[len(points) - 1][1]), color, thickness)
 
-    def draw_bounding_box(self, img, boundingbox, color=[0, 255, 0], thickness=6):
+    def draw_bounding_box(self, img, boundingbox, color=(0, 255, 0), thickness=6):
         x1, y1, x2, y2 = boundingbox
         cv2.line(img, (x1, y1), (x2, y1), color, thickness)
         cv2.line(img, (x2, y1), (x2, y2), color, thickness)
@@ -182,7 +178,7 @@ class ProjectionManager:
 
     # draw parallel lines in a perspective image that will later be projected
     # into a flat surface
-    def draw_parallel_lines_pre_projection(self, img, lane_info, color=[128, 0, 0], thickness=5):
+    def draw_parallel_lines_pre_projection(self, img, lane_info, color=(128, 0, 0), thickness=5):
         lx1 = lane_info[3][0]
         rx1 = lane_info[4][0]
         rx2 = lane_info[5][0]
@@ -194,7 +190,7 @@ class ProjectionManager:
         cv2.line(img, (lx1, ly1), (lx2, ly2), color, thickness)
         cv2.line(img, (rx1, ry1), (rx2, ry2), color, thickness)
 
-    def draw_estimated_lane_line_location(self, img, base_pos, distance, color=[128, 0, 0], thickness=5):
+    def draw_estimated_lane_line_location(self, img, base_pos, distance, color=(128, 0, 0), thickness=5):
         x = int(base_pos + distance)
         y1 = self.projectedY - 750
         y2 = self.projectedY
@@ -328,8 +324,7 @@ class ProjectionManager:
         self.src2dstM = cv2.getPerspectiveTransform(src, dst)
         self.dst2srcM = cv2.getPerspectiveTransform(dst, src)
         img_size = (self.projectedX, self.projectedY)
-        warped = cv2.warpPerspective(
-            img, self.src2dstM, img_size, flags=cv2.INTER_LINEAR)
+        warped = cv2.warpPerspective(img, self.src2dstM, img_size, flags=cv2.INTER_LINEAR)
 
         # warped = gray
         return warped, self.src2dstM
@@ -475,11 +470,11 @@ class ProjectionManager:
 
             # generate grayscaled map image for projection
             projected_roadsurface, M = self.unwarp_lane(np.copy(masked_edges), self.curSrcRoadCorners,
-                                                        self.curDstRoadCorners, self.mtx)
+                                                        self.curDstRoadCorners)
             imgftr.setEdgeProjection(projected_roadsurface)
 
             # generate full color projection
-            projected, M = self.unwarp_lane(imgftr.curImage, self.curSrcRoadCorners, self.curDstRoadCorners, self.mtx)
+            projected, M = self.unwarp_lane(imgftr.curImage.astype(np.uint8), self.curSrcRoadCorners, self.curDstRoadCorners)
             imgftr.setRoadProjection(projected)
 
             # save current source projection rect.
@@ -497,117 +492,42 @@ class ProjectionManager:
 
             # rest is only valid if we are able to get lane_info...
             if lane_info[0] > -1000:
-                leftbound = int(lane_info[7][0] - (self.x * 0.1))
-                rightbound = int(lane_info[7][0] + (self.x * 0.1))
-                topbound = int(lane_info[7][1] - (self.y * 0.15))
-                bottombound = int(lane_info[7][1] + (self.y * 0.05))
-                boundingbox = (leftbound - 2, topbound - 2,
-                               rightbound + 2, bottombound + 2)
-
                 # non-projected image with found points
                 ignore = np.copy(line_image) * 0
                 self.diag2 = imgftr.miximg(imgftr.curImage, masked_edges * 2)
-                self.diag2 = imgftr.miximg(
-                    self.diag2, np.dstack((line_image, ignore, ignore)))
+                self.diag2 = imgftr.miximg(self.diag2, np.dstack((line_image, ignore, ignore)))
                 if imgftr.visibility > -30:
                     self.draw_masked_area(self.diag2, vertices)
                 # self.draw_bounding_box(self.diag2, boundingbox)
                 font = cv2.FONT_HERSHEY_COMPLEX
-                cv2.putText(self.diag2, 'Frame: %d   Hough: %d' % (
-                    self.curFrame, self.hough),
-                            (30, 30), font, 1, (255, 0, 0), 2)
-                self.draw_area_of_interest(self.diag2, areaOfInterest, color=[
-                    0, 128, 0], thickness=5)
+                cv2.putText(self.diag2, 'Frame: %d   Hough: %d' % (self.curFrame, self.hough), (30, 30), font, 1,
+                            (255, 0, 0), 2)
+                self.draw_area_of_interest(self.diag2, areaOfInterest, color=[0, 128, 0], thickness=5)
 
-                cv2.putText(
-                    self.diag2, 'x1,y1: %d,%d' %
-                                (int(lane_info[3][0]), int(lane_info[3][1])),
-                    (int(lane_info[3][0]) - 250, int(lane_info[3][1]) - 30),
-                    font, 1, (255, 0, 0), 2)
-                cv2.putText(
-                    self.diag2, 'x2,y2: %d,%d' %
-                                (int(lane_info[4][0]), int(lane_info[4][1])),
-                    (int(lane_info[4][0]), int(lane_info[4][1]) - 30),
-                    font, 1, (255, 0, 0), 2)
-                cv2.putText(
-                    self.diag2, 'x3,y3: %d,%d' %
-                                (int(lane_info[5][0]), int(lane_info[5][1])),
-                    (int(lane_info[5][0]) - 200, int(lane_info[5][1]) - 30),
-                    font, 1, (255, 0, 0), 2)
-                cv2.putText(
-                    self.diag2, 'x4,y4: %d,%d' %
-                                (int(lane_info[6][0]), int(lane_info[6][1])),
-                    (int(lane_info[6][0]) - 200, int(lane_info[6][1]) - 30),
-                    font, 1, (255, 0, 0), 2)
+                cv2.putText(self.diag2, 'x1,y1: %d,%d' % (int(lane_info[3][0]), int(lane_info[3][1])),
+                            (int(lane_info[3][0]) - 250, int(lane_info[3][1]) - 30), font, 1, (255, 0, 0), 2)
+                cv2.putText(self.diag2, 'x2,y2: %d,%d' % (int(lane_info[4][0]), int(lane_info[4][1])),
+                            (int(lane_info[4][0]), int(lane_info[4][1]) - 30), font, 1, (255, 0, 0), 2)
+                cv2.putText(self.diag2, 'x3,y3: %d,%d' % (int(lane_info[5][0]), int(lane_info[5][1])),
+                            (int(lane_info[5][0]) - 200, int(lane_info[5][1]) - 30), font, 1, (255, 0, 0), 2)
+                cv2.putText(self.diag2, 'x4,y4: %d,%d' % (int(lane_info[6][0]), int(lane_info[6][1])),
+                            (int(lane_info[6][0]) - 200, int(lane_info[6][1]) - 30), font, 1, (255, 0, 0), 2)
 
-                # diag 3 screen - complete road RGB image projected
-                # new_edge = np.copy(edge)
-                # new_edge[masked_edge>0] = 0
-                # diag3tmp = np.dstack((new_edge, new_edge, new_edge)) * 4
-                # diag3tmp = imgftr.miximg(imgftr.curImage, masked_edges*4)
-                # self.draw_area_of_interest_for_projection(diag3tmp,
-                #     areaOfInterest, color=[0,128,0],
-                #     thickness1=1, thickness2=50)
-                # self.draw_parallel_lines_pre_projection(diag3tmp,
-                #     lane_info, color=[128,0,0], thickness=2)
                 self.diag3 = np.copy(projected)
-
                 # diag 4 screen - road edges with masked out area shown
                 # projected
-                self.diag4, M = self.unwarp_lane(
-                    imgftr.makefull(self.diag1),
-                    self.curSrcRoadCorners,
-                    self.curDstRoadCorners, self.mtx)
-                cv2.putText(
-                    self.diag4, 'x1,y1: %d,%d' %
-                                (int(self.curDstRoadCorners[0][0]),
-                                 int(self.curDstRoadCorners[0][1]) - 1),
-                    (int(self.curDstRoadCorners[0][0]) - 275,
-                     int(self.curDstRoadCorners[0][1]) - 15),
-                    font, 1, (255, 0, 0), 2)
-                cv2.putText(
-                    self.diag4, 'x2,y2: %d,%d' %
-                                (int(self.curDstRoadCorners[1][0]),
-                                 int(self.curDstRoadCorners[1][1]) - 1),
-                    (int(self.curDstRoadCorners[1][0]) + 25,
-                     int(self.curDstRoadCorners[1][1]) - 15),
-                    font, 1, (255, 0, 0), 2)
-                cv2.putText(
-                    self.diag4, 'x3,y3: %d,%d' %
-                                (int(self.curDstRoadCorners[2][0]),
-                                 int(self.curDstRoadCorners[2][1]) - 1),
-                    (int(self.curDstRoadCorners[2][0]) + 25,
-                     int(self.curDstRoadCorners[2][1]) - 15),
-                    font, 1, (255, 0, 0), 2)
-                cv2.putText(
-                    self.diag4, 'x4,y4: %d,%d' %
-                                (int(self.curDstRoadCorners[3][0]),
-                                 int(self.curDstRoadCorners[3][1]) - 1),
-                    (int(self.curDstRoadCorners[3][0]) - 275,
-                     int(self.curDstRoadCorners[3][1]) - 15),
-                    font, 1, (255, 0, 0), 2)
+                self.diag4, M = self.unwarp_lane(imgftr.makefull(self.diag1), self.curSrcRoadCorners,
+                                                 self.curDstRoadCorners)
+                cv2.putText(self.diag4, 'x1,y1: %d,%d' % (int(self.curDstRoadCorners[0][0]), int(self.curDstRoadCorners[0][1]) - 1), (int(self.curDstRoadCorners[0][0]) - 275, int(self.curDstRoadCorners[0][1]) - 15), font, 1, (255, 0, 0), 2)
+                cv2.putText(self.diag4, 'x2,y2: %d,%d' % (int(self.curDstRoadCorners[1][0]), int(self.curDstRoadCorners[1][1]) - 1), (int(self.curDstRoadCorners[1][0]) + 25, int(self.curDstRoadCorners[1][1]) - 15), font, 1, (255, 0, 0), 2)
+                cv2.putText(self.diag4, 'x3,y3: %d,%d' % (int(self.curDstRoadCorners[2][0]), int(self.curDstRoadCorners[2][1]) - 1), (int(self.curDstRoadCorners[2][0]) + 25, int(self.curDstRoadCorners[2][1]) - 15), font, 1, (255, 0, 0), 2)
+                cv2.putText(self.diag4, 'x4,y4: %d,%d' % (int(self.curDstRoadCorners[3][0]), int(self.curDstRoadCorners[3][1]) - 1), (int(self.curDstRoadCorners[3][0]) - 275, int(self.curDstRoadCorners[3][1]) - 15), font, 1, (255, 0, 0), 2)
 
                 # draw circles of destination points
-                cv2.circle(
-                    self.diag4,
-                    (int(self.curDstRoadCorners[0][0]),
-                     int(self.curDstRoadCorners[0][1])),
-                    10, (255, 64, 64), 10)
-                cv2.circle(
-                    self.diag4,
-                    (int(self.curDstRoadCorners[1][0]),
-                     int(self.curDstRoadCorners[1][1])),
-                    10, (255, 64, 64), 10)
-                cv2.circle(
-                    self.diag4,
-                    (int(self.curDstRoadCorners[2][0]),
-                     int(self.curDstRoadCorners[2][1])),
-                    10, (255, 64, 64), 10)
-                cv2.circle(
-                    self.diag4,
-                    (int(self.curDstRoadCorners[3][0]),
-                     int(self.curDstRoadCorners[3][1])),
-                    10, (255, 64, 64), 10)
+                cv2.circle(self.diag4, (int(self.curDstRoadCorners[0][0]), int(self.curDstRoadCorners[0][1])), 10, (255, 64, 64), 10)
+                cv2.circle(self.diag4, (int(self.curDstRoadCorners[1][0]), int(self.curDstRoadCorners[1][1])), 10, (255, 64, 64), 10)
+                cv2.circle(self.diag4, (int(self.curDstRoadCorners[2][0]), int(self.curDstRoadCorners[2][1])), 10, (255, 64, 64), 10)
+                cv2.circle(self.diag4, (int(self.curDstRoadCorners[3][0]), int(self.curDstRoadCorners[3][1])), 10, (255, 64, 64), 10)
 
     # function to project the edges into a plane
     # this function is for when we are now at greater than 50% confidence in
@@ -655,15 +575,11 @@ class ProjectionManager:
             [lane_info[3], lane_info[4], lane_info[5], lane_info[6]])
 
         # generate grayscaled map image
-        projected_roadsurface, M = self.unwarp_lane(
-            np.copy(masked_edges), self.curSrcRoadCorners,
-            self.curDstRoadCorners, self.mtx)
+        projected_roadsurface, M = self.unwarp_lane(np.copy(masked_edges), self.curSrcRoadCorners, self.curDstRoadCorners)
         imgftr.setEdgeProjection(projected_roadsurface)
 
         # generate full color projection
-        projected, M = self.unwarp_lane(
-            imgftr.curImage, self.curSrcRoadCorners,
-            self.curDstRoadCorners, self.mtx)
+        projected, M = self.unwarp_lane(imgftr.curImage, self.curSrcRoadCorners, self.curDstRoadCorners)
         imgftr.setRoadProjection(projected)
 
         # re-calculate the rotation and translation vectors for augmentation
@@ -715,27 +631,20 @@ class ProjectionManager:
                     thickness1=1, thickness2=50)
                 self.draw_parallel_lines_pre_projection(
                     diag3tmp, lane_info, color=[128, 0, 0], thickness=2)
-                self.diag3, M = self.unwarp_lane(
-                    diag3tmp, self.curSrcRoadCorners,
-                    self.curDstRoadCorners, self.mtx)
+                self.diag3, M = self.unwarp_lane(diag3tmp, self.curSrcRoadCorners, self.curDstRoadCorners)
 
                 # diag 4 screen - road edges with masked out area shown
                 # projected
-                self.diag4, M = self.unwarp_lane(
-                    imgftr.makefull(self.diag1),
-                    self.curSrcRoadCorners,
-                    self.curDstRoadCorners, self.mtx)
+                self.diag4, M = self.unwarp_lane(imgftr.makefull(self.diag1), self.curSrcRoadCorners, self.curDstRoadCornersx)
 
     # warp the perspective view to planar view
     def curWarp(self, imgftr, image):
-        warped, M = self.unwarp_lane(
-            image, self.curSrcRoadCorners, self.curDstRoadCorners, self.mtx)
+        warped, M = self.unwarp_lane(image, self.curSrcRoadCorners, self.curDstRoadCorners)
         return warped
 
     # unwarp the planar view back to perspective view
     def curUnWarp(self, imgftr, image):
-        unwarped, M = self.unwarp_lane_back(
-            image, self.curDstRoadCorners, self.curSrcRoadCorners, self.mtx)
+        unwarped, M = self.unwarp_lane_back(image, self.curDstRoadCorners, self.curSrcRoadCorners)
         return unwarped
 
     # an attempt to dampen the bounce of the car and the road surface.
@@ -792,18 +701,21 @@ class ProjectionManager:
     def pixel2Meter(self):
         return self.curImgFtr.throwDistance / self.projectedY
 
-    # Augmentation Special Effects - default full sweep takes about two
-    # seconds 52 frames - video is 26fps
-    def wireframe(self, wireFrameProjection, frame, mainLane,
-                  color=[255, 255, 255], wireThick=1,
-                  sweepThick=5, fullsweepFrame=26):
+    def wireframe(self, wireFrameProjection, frame, mainLane, color=(255, 255, 255), wireThick=1):
+        """
+        Augmentation Special Effects - default full sweep takes about two seconds 52 frames - video is 26fps
+        :param wireFrameProjection:
+        :param frame:
+        :param mainLane:
+        :param color:
+        :param wireThick:
+        :return:
+        """
         # calculate the wireframe positions
         nlanes = len(mainLane.lines) - 1
         leftPolynomial = np.poly1d(mainLane.lines[0].currentFit)
-        roadleftPolynomial = np.poly1d(
-            mainLane.lines[mainLane.left].currentFit)
-        roadrightPolynomial = np.poly1d(
-            mainLane.lines[mainLane.right].currentFit)
+        roadleftPolynomial = np.poly1d(mainLane.lines[mainLane.left].currentFit)
+        roadrightPolynomial = np.poly1d(mainLane.lines[mainLane.right].currentFit)
         rightPolynomial = np.poly1d(mainLane.lines[nlanes].currentFit)
         delta = (frame * 32) % 128
         squares = []
@@ -815,27 +727,31 @@ class ProjectionManager:
             x2 = roadleftPolynomial([y1])
             x3 = roadrightPolynomial([y1])
             x4 = rightPolynomial([y1])
-            cv2.line(wireFrameProjection, (x1, y1),
-                     (x4, y1), color, wireThick * 3)
+            cv2.line(wireFrameProjection, (x1, y1), (x4, y1), color, wireThick * 3)
             squares.append(((x2, y1), (x3, y1)))
 
         # vertical lines
         allY = [n * 32 for n in range(int(self.projectedY / 32))]
-        polyDiff = np.polysub(mainLane.lines[nlanes].currentFit,
-                              mainLane.lines[0].currentFit) / (nlanes * 2)
+        polyDiff = np.polysub(mainLane.lines[nlanes].currentFit, mainLane.lines[0].currentFit) / (nlanes * 2)
         curPoly = leftPolynomial
         for i in range(nlanes * 2):
             allX = curPoly(allY)
             XYPolyline = np.column_stack((allX, allY)).astype(np.int32)
-            cv2.polylines(wireFrameProjection, [
-                XYPolyline], 0, color, int(wireThick / 4))
+            cv2.polylines(wireFrameProjection, [XYPolyline], 0, color, int(wireThick / 4))
             curPoly = np.polyadd(curPoly, polyDiff)
         return squares
 
-    # Augmentation Special Effects - default full sweep takes about four
-    # seconds 104 frames - video is 26fps
-    def sweep(self, wireFrameProjection, frame, lines,
-              color=[0, 0, 255], sweepThick=5, fullsweepFrame=104):
+    def sweep(self, wireFrameProjection, frame, lines, color=(0, 0, 255), sweepThick=5, fullsweepFrame=104):
+        """
+        Augmentation Special Effects - default full sweep takes about four seconds 104 frames - video is 26fps
+        :param wireFrameProjection:
+        :param frame:
+        :param lines:
+        :param color:
+        :param sweepThick:
+        :param fullsweepFrame:
+        :return:
+        """
         # calculate sweep angle
         halfcycle = fullsweepFrame / 2
         position = (frame % fullsweepFrame)
@@ -847,12 +763,10 @@ class ProjectionManager:
         # calculate the wireframe positions
         nlanes = len(lines) - 1
         leftPolynomial = np.poly1d(lines[0].currentFit)
-        rightPolynomial = np.poly1d(lines[nlanes].currentFit)
+        # rightPolynomial = np.poly1d(lines[nlanes].currentFit)
 
         # scanning sweep
-        polySweepDiff = np.polysub(
-            lines[nlanes].currentFit,
-            lines[0].currentFit) * sweep
+        polySweepDiff = np.polysub(lines[nlanes].currentFit, lines[0].currentFit) * sweep
         sweepPoly = np.polyadd(leftPolynomial, polySweepDiff)
         allX = sweepPoly(allY)
         XYPolyline = np.column_stack((allX, allY)).astype(np.int32)
@@ -861,10 +775,7 @@ class ProjectionManager:
         for i in range(nlanes):
             leftLine = np.poly1d(lines[i].currentFit)
             rightLine = np.poly1d(lines[i + 1].currentFit)
-            if (leftLine([self.projectedY])[0] <
-                    sweepPoly([self.projectedY])[0] and
-                        sweepPoly([self.projectedY])[0] <
-                        rightLine([self.projectedY])[0]):
+            if (leftLine([self.projectedY])[0] < sweepPoly([self.projectedY])[0] and sweepPoly([self.projectedY])[0] < rightLine([self.projectedY])[0]):
                 sweepLane = i
         return sweepLane
 
@@ -885,18 +796,13 @@ class ProjectionManager:
              [self.curDstRoadCorners[0][0],
               self.curDstRoadCorners[0][1], -64]]).reshape(-1, 3)
 
-        corner, jac = cv2.projectPoints(
-            be_corner, self.rvecs, self.tvecs, self.mtx, self.dist)
-        axis, jac = cv2.projectPoints(
-            be_axis, self.rvecs, self.tvecs, self.mtx, self.dist)
+        corner, jac = cv2.projectPoints(be_corner, self.rvecs, self.tvecs, self.mtx, self.dist)
+        axis, jac = cv2.projectPoints(be_axis, self.rvecs, self.tvecs, self.mtx, self.dist)
         corner = tuple(corner[0].ravel())
 
-        cv2.line(perspectiveImage, corner, tuple(
-            axis[0].ravel()), (255, 0, 0), 5)
-        cv2.line(perspectiveImage, corner, tuple(
-            axis[1].ravel()), (0, 255, 0), 5)
-        cv2.line(perspectiveImage, corner, tuple(
-            axis[2].ravel()), (0, 0, 255), 5)
+        cv2.line(perspectiveImage, corner, tuple(axis[0].ravel()), (255, 0, 0), 5)
+        cv2.line(perspectiveImage, corner, tuple(axis[1].ravel()), (0, 255, 0), 5)
+        cv2.line(perspectiveImage, corner, tuple(axis[2].ravel()), (0, 0, 255), 5)
 
     def projectPoints(self, birdsEye3DPoints):
         m11 = self.dst2srcM[0][0]
@@ -913,10 +819,8 @@ class ProjectionManager:
         z = birdsEye3DPoints[:, 2]
         size = len(birdsEye3DPoints)
         perspectiveImagePoints = np.zeros((size, 2), dtype=np.float32)
-        perspectiveImagePoints[:, 0] = (
-                                           m11 * x + m12 * y + m13) / (m31 * x + m32 * y + m33)
-        perspectiveImagePoints[:, 1] = (
-                                           m21 * x + m22 * y + m23 - z) / (m31 * x + m32 * y + m33)
+        perspectiveImagePoints[:, 0] = (m11 * x + m12 * y + m13) / (m31 * x + m32 * y + m33)
+        perspectiveImagePoints[:, 1] = (m21 * x + m22 * y + m23 - z) / (m31 * x + m32 * y + m33)
         return perspectiveImagePoints
 
     def drawCalibrationCube(self, perspectiveImage):
@@ -959,5 +863,16 @@ class ProjectionManager:
             square = self.projectPoints(be_square)
             imgpts = np.int32(square).reshape(-1, 2)
             # draw bottom of square
-            cv2.drawContours(perspectiveImage, [
-                imgpts[:4]], -1, (0, 255, 0), 1)
+            cv2.drawContours(perspectiveImage, [imgpts[:4]], -1, (0, 255, 0), 1)
+
+    def drawRoadSquares_tight(self, perspectiveImage, squares):
+        for square in squares:
+            be_square = np.float32(
+                [[square[0][0], square[0][1], 0],
+                 [square[0][0], square[0][1], self.z * 2],
+                 [square[1][0], square[1][1], self.z * 2],
+                 [square[1][0], square[1][1], 0]]).reshape(-1, 3)
+            square = self.projectPoints(be_square)
+            imgpts = np.int32(square).reshape(-1, 2)
+            # draw bottom of square
+            cv2.drawContours(perspectiveImage, [imgpts[:4]], -1, (0, 255, 0), 1)

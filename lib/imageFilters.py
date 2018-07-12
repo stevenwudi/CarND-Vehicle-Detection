@@ -10,8 +10,7 @@ import numpy as np
 class ImageFilters:
     # Initialize ImageFilter
 
-    def __init__(self, camCal, projectedX, projectedY,
-                 defaultThrowDistance=100.0, debug=False):
+    def __init__(self, camCal, projectedX, projectedY, defaultThrowDistance=100.0, debug=False):
         # set debugging
         self.debug = debug
 
@@ -195,14 +194,13 @@ class ImageFilters:
         return dir_binary.astype(np.uint8)
 
     # Python 3 has support for cool math symbols.
-    def miximg(self, img1, img2, α=0.8, β=1., λ=0.):
+    def miximg(self, img1, img2, alpha=0.8, beta=1., gamma=0.):
         """
         The result image is computed as follows:
         img1 * α + img2 * β + λ
         NOTE: img1 and img2 must be the same shape!
         """
-        return cv2.addWeighted(img1.astype(np.uint8),
-                               α, img2.astype(np.uint8), β, λ)
+        return cv2.addWeighted(img1.astype(np.uint8), alpha, img2.astype(np.uint8), beta, gamma)
 
     # Define a function that thresholds the S-channel of HLS
     def hls_s(self, hls, thresh=(0, 255)):
@@ -343,8 +341,7 @@ class ImageFilters:
                 if maskedEdgeLineSum > thresh:
                     self.throwDistanceFound = True
                     self.throwDistancePixel = topOfThrow
-                    self.throwDistance = self.throwDistance * \
-                                         ((self.projectedY - topOfThrow) / self.projectedY)
+                    self.throwDistance = self.throwDistance * ((self.projectedY - topOfThrow) / self.projectedY)
                     if debug:
                         self.curRoadEdgeProjected[
                         topOfThrow:(topOfThrow + 1), :, 0] = 0

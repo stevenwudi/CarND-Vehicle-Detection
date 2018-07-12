@@ -131,13 +131,18 @@ class Line:
             x = polynomial([self.projectedY - 1])
             self.pixelBasePos = x[0]
 
-    # create adjacent lane lines using an existing lane on the left
     def createPolyFitRight(self, curImgFtr, leftLane, faint=1.0, resized=False):
+        """
+        create adjacent lane lines using an existing lane on the left
+        :param curImgFtr:
+        :param leftLane:
+        :param faint:
+        :param resized:
+        :return:
+        """
         # create new right line polynomial
-        polyDiff = np.polysub(leftLane.lines[leftLane.right].currentFit,
-                              leftLane.lines[leftLane.left].currentFit)
-        self.currentFit = np.polyadd(
-            leftLane.lines[leftLane.right].currentFit, polyDiff)
+        polyDiff = np.polysub(leftLane.lines[leftLane.right].currentFit, leftLane.lines[leftLane.left].currentFit)
+        self.currentFit = np.polyadd(leftLane.lines[leftLane.right].currentFit, polyDiff)
         polynomial = np.poly1d(self.currentFit)
         self.allY = leftLane.lines[leftLane.right].allY
         self.currentX = polynomial(self.allY)
@@ -152,11 +157,9 @@ class Line:
             self.detected = True
 
             # create linepoly
-            xy1 = np.column_stack(
-                (self.currentX + self.maskDelta, self.allY))
+            xy1 = np.column_stack((self.currentX + self.maskDelta, self.allY))
             xy1 = xy1.astype(np.int32)
-            xy2 = np.column_stack(
-                (self.currentX - self.maskDelta, self.allY))
+            xy2 = np.column_stack((self.currentX - self.maskDelta, self.allY))
             xy2 = xy2.astype(np.int32)
             self.linePoly = np.concatenate((xy1, xy2[::-1]), axis=0)
 
@@ -175,8 +178,7 @@ class Line:
 
             # classify the line
             # print("classifying the right line",self.side)
-            self.getLineStats(
-                curImgFtr.getRoadProjection(), faint=faint, resized=resized)
+            self.getLineStats(curImgFtr.getRoadProjection(), faint=faint, resized=resized)
 
             # set bottom of line
             x = polynomial([self.projectedY - 1])
@@ -275,11 +277,11 @@ class Line:
         points = np.nonzero(masked_projection)
         self.bottomProjectedY = np.max(points[0])
 
-    # function to find lane line positions given histogram row,
-    # last column positions and n_neighbors
-    # return column positions
     def find_lane_nearest_neighbors(self, histogram, lastpos, nneighbors):
-        ncol = len(histogram) - 1
+        """
+        function to find lane line positions given histogram row, last column positions and n_neighbors
+        return column positions
+        """
         x = []
         list = {"count": 0, "position": lastpos}
         for i in range(nneighbors):
@@ -295,8 +297,12 @@ class Line:
                     list['position'] = lastpos - i
         return list['position'], x
 
-    # function to set base position
     def setBasePos(self, basePos):
+        """
+        function to set base position
+        :param basePos:
+        :return:
+        """
         self.pixelBasePos = basePos
 
     # function to find lane lines points using a sliding window
@@ -310,11 +316,9 @@ class Line:
         pos1 = self.pixelBasePos
         start_row = nrows - 16
         for i in range(int((nrows / neighbors))):
-            histogram = np.sum(
-                masked_lines[start_row + 10:start_row + 26, :], axis=0)
+            histogram = np.sum(masked_lines[start_row + 10:start_row + 26, :], axis=0)
             histogram = histogram.astype(np.uint8)
-            pos2, x = self.find_lane_nearest_neighbors(
-                histogram, pos1, int(neighbors * 1.3))
+            pos2, x = self.find_lane_nearest_neighbors(histogram, pos1, int(neighbors * 1.3))
             y = start_row + neighbors
             for i in range(len(x)):
                 xval.append(x[i])
@@ -570,16 +574,13 @@ class Line:
             self.adjacentLLine = None
             self.adjacentRight = False
             self.adjacentRLine = None
-            # print("line type", self.lineType, "color",
-            #        self.line_color, "classified: ", self.lineClassified)
-            # print("rgb:", red, green, blue )
-            # print("faint:", faint )
-            # print("pixel density:", self.pixelDensity )
 
-    # get the top point of the detected line.
-    # use to see if we lost track
     def getTopPoint(self):
-        if (self.allY is not None and self.currentFit is not None and len(self.allY) > 0):
+        """
+        Get the top point of the detected line. use to see if we lost track
+        :return:
+        """
+        if self.allY is not None and self.currentFit is not None and len(self.allY) > 0:
             y = np.min(self.allY)
             polynomial = np.poly1d(self.currentFit)
             x = polynomial([y])
@@ -592,23 +593,25 @@ class Line:
     def requestTopY(self, newY):
         self.newYTop = newY
 
-    # reset the mask delta for dynamically adjusting masking curve when lines
-    # are harder to find.
     def setMaskDelta(self, maskDelta):
+        """
+        reset the mask delta for dynamically adjusting masking curve when lines
+        are harder to find.
+        :param maskDelta:
+        :return:
+        """
         self.maskDelta = maskDelta
 
-    # Define conversions in x and y from pixels space to meters given lane
-    # line separation in pixels
-    # NOTE: Only do calculation if it make sense - otherwise give previous
-    # answer.
     def radius_in_meters(self, throwDistanceInMeters, distance):
-        # print("throwDistanceInMeters: ", throwDistanceInMeters)
-        if (throwDistanceInMeters > 0.0 and
-                    self.allY is not None and
-                    self.currentX is not None and
-                    len(self.allY) > 0 and
-                    len(self.currentX) > 0 and
-                    len(self.allY) == len(self.currentX)):
+        """
+        Define conversions in x and y from pixels space to meters given lane line separation in pixels.
+        NOTE: Only do calculation if it make sense - otherwise give previous answer.
+        :param throwDistanceInMeters:
+        :param distance:
+        :return:
+        """
+        if throwDistanceInMeters > 0.0 and self.allY is not None and self.currentX is not None and len(self.allY) > 0 \
+                and len(self.currentX) > 0 and len(self.allY) == len(self.currentX):
             ###################################################################
             # Note: We are using 100 instead of 30 here since our throw for the
             #       perspective transform is much longer. We estimate our throw
@@ -642,11 +645,8 @@ class Line:
             # since we are using a 1920 pixel throw, 8 seems to be the correct
             # divisor now.
             ypoint = self.projectedY / 6
-            fit_cr = np.polyfit(self.allY * ym_per_pix,
-                                self.currentX * xm_per_pix, 2)
-            self.radiusOfCurvature = (
-                                         (1 + (2 * fit_cr[0] * ypoint +
-                                               fit_cr[1]) ** 2) ** 1.5) / (2 * fit_cr[0])
+            fit_cr = np.polyfit(self.allY * ym_per_pix, self.currentX * xm_per_pix, 2)
+            self.radiusOfCurvature = ((1 + (2 * fit_cr[0] * ypoint + fit_cr[1]) ** 2) ** 1.5) / (2 * fit_cr[0])
         return self.radiusOfCurvature
 
     # Define conversion in x off center from pixel space to meters given lane
