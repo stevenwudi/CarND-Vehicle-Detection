@@ -15,7 +15,7 @@ from lib.cameraCal import CameraCal
 def process_road_image(img, roadMgr, diagMgr, scrType=0, debug=False, resized=False):
     # Run the functions
     roadMgr.findLanes(img, resized=resized)
-    #roadMgr.findVehicles(resized=resized)
+    roadMgr.findVehicles(resized=resized)
 
     # debug/diagnostics requested
     if debug:
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     parser.add_argument('--scrType', type=int, default=0, help=diagHelp)
     parser.add_argument('--notext', action='store_true', default=False, help='do not render text overlay')
     parser.add_argument('--collect', action='store_true', default=False, help=collectHelp)
-    parser.add_argument('--infilename', type=str, default='./test_images/test2.jpg', help=inputHelp)
+    parser.add_argument('--infilename', type=str, default='./test_images/test5.jpg', help=inputHelp)
     args = parser.parse_args()
 
     file_dir = '/'.join(args.infilename.split('/')[:-1])

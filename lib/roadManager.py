@@ -351,14 +351,14 @@ class RoadManager:
         self.specialPerspectiveEffects = self.curImgFtr.miximg(self.specialPerspectiveEffects * 0, self.specialPerspectiveEffects, 1.0, 0.9)
         self.sweepLane = self.projMgr.sweep(self.specialProjectedEffects, self.curFrame, self.lines)
 
-        self.roadsquares = self.projMgr.wireframe(self.roadsurface, self.curFrame, self.lanes[self.mainLaneIdx])
-        self.roadsurface = self.curImgFtr.miximg(self.roadsurface, self.specialProjectedEffects, 1.0, 1.0)
-        self.projMgr.sweep(self.roadsurface, self.curFrame, self.lines)
-
-        # create image lane image
         self.curImgFtr.lane_vis = np.copy(self.curImgFtr.curImage.astype(np.uint8))
+        self.roadsurface = self.curImgFtr.miximg(self.roadsurface, self.specialProjectedEffects, 1.0, 1.0)
+        # for road_idx in range(len(self.lanes)):
+        #     self.roadsquares = self.projMgr.wireframe(self.roadsurface, self.curFrame, self.lanes[road_idx])
+        self.roadsquares = self.projMgr.wireframe(self.roadsurface, self.curFrame, self.lanes[self.mainLaneIdx])
+        self.projMgr.sweep(self.roadsurface, self.curFrame, self.lines)
+        # create image lane image
         self.projMgr.drawRoadSquares_tight(self.curImgFtr.lane_vis, self.roadsquares)
-        plt.imshow(self.curImgFtr.lane_vis)
 
     def findVehicles(self, resized=False):
         """
@@ -378,8 +378,7 @@ class RoadManager:
                     self.threshold = 25.0
                     self.vehicleDetection.set_threshold(self.threshold)
 
-            self.roadGrid = self.vehicleDetection.slidingWindows(
-                self.lines, self.mainLaneIdx, False)
+            self.roadGrid = self.vehicleDetection.slidingWindows(self.lines, self.mainLaneIdx, False)
             allPossibleWindows = self.roadGrid.getAllWindows()
         else:
             self.roadGrid = self.vehicleDetection.slidingWindows(self.lines, self.mainLaneIdx, True)

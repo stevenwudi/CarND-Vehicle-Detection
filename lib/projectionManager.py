@@ -865,7 +865,8 @@ class ProjectionManager:
             # draw bottom of square
             cv2.drawContours(perspectiveImage, [imgpts[:4]], -1, (0, 255, 0), 1)
 
-    def drawRoadSquares_tight(self, perspectiveImage, squares):
+    def drawRoadSquares_tight(self, perspectiveImage, squares, road_idx=0):
+        color_list = [(0, 255, 0), (255, 0, 0), (0,0,255)]
         for square in squares:
             be_square = np.float32(
                 [[square[0][0], square[0][1], 0],
@@ -875,4 +876,5 @@ class ProjectionManager:
             square = self.projectPoints(be_square)
             imgpts = np.int32(square).reshape(-1, 2)
             # draw bottom of square
-            cv2.drawContours(perspectiveImage, [imgpts[:4]], -1, (0, 255, 0), 1)
+            cv2.drawContours(perspectiveImage, [imgpts[:4]], -1, color_list[road_idx%len(color_list)], 1)
+
