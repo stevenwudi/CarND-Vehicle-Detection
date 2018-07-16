@@ -95,35 +95,33 @@ class RoadManager:
                                       debug=debug)
 
         # vehicles
-        # TODO: Diw change it to false
-        if False:
-            self.versionName = "CHOGRGB4"
-            self.cspace = 'RGB'
-            self.orient = 8
-            self.pix_per_cell = 4
-            self.cell_per_block = 2
-            self.hog_channel = 0
-            # self.threshold = 10.15
-            # self.threshold = 20.0
-            # self.threshold = 15.0
-            # self.threshold = 27.0
-            # self.threshold = 40.0
-            self.threshold = 50.0
-            self.vehicleDetection = VehicleDetection(
-                self.projMgr.projectedX,
-                self.projMgr.projectedY,
-                self.versionName,
-                self.cspace, self.orient,
-                self.pix_per_cell,
-                self.cell_per_block,
-                self.hog_channel,
-                self.threshold)
-            self.vehicleTracking = VehicleTracking(
-                self.x,
-                self.y,
-                self.projMgr.projectedX,
-                self.projMgr.projectedY,
-                self.lanes)
+        self.versionName = "CHOGRGB4"
+        self.cspace = 'RGB'
+        self.orient = 8
+        self.pix_per_cell = 4
+        self.cell_per_block = 2
+        self.hog_channel = 0
+        # self.threshold = 10.15
+        # self.threshold = 20.0
+        # self.threshold = 15.0
+        # self.threshold = 27.0
+        # self.threshold = 40.0
+        self.threshold = 50.0
+        self.vehicleDetection = VehicleDetection(
+            self.projMgr.projectedX,
+            self.projMgr.projectedY,
+            self.versionName,
+            self.cspace, self.orient,
+            self.pix_per_cell,
+            self.cell_per_block,
+            self.hog_channel,
+            self.threshold)
+        self.vehicleTracking = VehicleTracking(
+            self.x,
+            self.y,
+            self.projMgr.projectedX,
+            self.projMgr.projectedY,
+            self.lanes)
 
         self.possibleVehicleWindows = []
         self.vehicles = []

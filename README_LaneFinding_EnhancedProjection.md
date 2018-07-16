@@ -3,10 +3,9 @@
 
 The goals / steps of this project are the following:
 
-* 
-*
-*
-
+* [Camera Calibration](#camera-calibration)
+* [Image Filters](#image-filters)
+* [Finding Multiple Lanes](#finding-multiple-lanes)
 
 [//]: # (Image References)
 [test5]: ./test_images/test5.jpg
@@ -16,7 +15,7 @@ The goals / steps of this project are the following:
 ## Implementation details
 
 
-### 1. Camera Calibration
+## Camera Calibration
 
 The goal of camera calibration is distortion correction. Image distortion occurs when a camera looks at 3D objects
 in the real world through lens and transform them into a 2D image.
@@ -40,7 +39,7 @@ camCal = CameraCal('camera_cal', 'camera_cal/calibrationdata.p')
 ```
 
 Next I describe the lane finding steps in `roadMgr.findLanes(img, resized=resized)`.
-### 2. Image Filters
+### Image Filters
 
 
 The imageFilter module will apply filters to an image to isolate the pixels that makes the lane lines. 
@@ -110,7 +109,7 @@ Of course, this is a pure computer vision technique, with machine learning, espe
 deep learning with convolutional neural networks, there are great variety of choices in 
 terms of performance and execution of speed. For example: [KITTI Road/Lane Detection Evaluation 2013.](http://www.cvlibs.net/datasets/kitti/eval_road.php)
 
-### 3. Hough Line
+#### Hough Line
 
 To find the main lane lines (the lane where the car is currently driving), 
 we have a region-of-interest (ROI) mask and then using Hough transforms to find main lane lines as follows:
@@ -119,7 +118,7 @@ ROI mask                                      |  Maksed edges                   
 :-------------------------:                   |:-------------------------:                    | :-------------------------:|
 ![](./output_images/lane_detection/mask.png)  |  ![](./output_images/lane_detection/masked_image.png) | ![](./output_images/lane_detection/hough_line.png)|
 
-### 3. Perspective to Plane Transform
+### Perspective to Plane Transform
 
 The pinwhole camera model can be found [here](https://en.wikipedia.org/wiki/Pinhole_camera_model):
  ![](./output_images/lane_detection/531px-Pinhole.svg.png)
@@ -138,7 +137,7 @@ Bird Eye View                                    |  Bird Eye View of Lane lines 
 ![](./output_images/lane_detection/birdeye.png)  |  ![](./output_images/lane_detection/birdeye_lane.png) | 
 
 
-### 4. Finding multiple Lanes
+## Finding multiple Lanes
 
 The following code in `roadManager.py` add left and right lanes accordingly:
 ```python
