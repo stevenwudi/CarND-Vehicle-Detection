@@ -5,6 +5,8 @@ Python class that handles projection calculations, operations and augmentation s
 
 import cv2
 import numpy as np
+from matplotlib import pyplot as plt
+from matplotlib.patches import Polygon
 
 
 class ProjectionManager:
@@ -474,7 +476,8 @@ class ProjectionManager:
             imgftr.setEdgeProjection(projected_roadsurface)
 
             # generate full color projection
-            projected, M = self.unwarp_lane(imgftr.curImage.astype(np.uint8), self.curSrcRoadCorners, self.curDstRoadCorners)
+            projected, M = self.unwarp_lane(imgftr.curImage.astype(np.uint8), self.curSrcRoadCorners,
+                                            self.curDstRoadCorners)
             imgftr.setRoadProjection(projected)
 
             # save current source projection rect.
@@ -518,16 +521,32 @@ class ProjectionManager:
                 # projected
                 self.diag4, M = self.unwarp_lane(imgftr.makefull(self.diag1), self.curSrcRoadCorners,
                                                  self.curDstRoadCorners)
-                cv2.putText(self.diag4, 'x1,y1: %d,%d' % (int(self.curDstRoadCorners[0][0]), int(self.curDstRoadCorners[0][1]) - 1), (int(self.curDstRoadCorners[0][0]) - 275, int(self.curDstRoadCorners[0][1]) - 15), font, 1, (255, 0, 0), 2)
-                cv2.putText(self.diag4, 'x2,y2: %d,%d' % (int(self.curDstRoadCorners[1][0]), int(self.curDstRoadCorners[1][1]) - 1), (int(self.curDstRoadCorners[1][0]) + 25, int(self.curDstRoadCorners[1][1]) - 15), font, 1, (255, 0, 0), 2)
-                cv2.putText(self.diag4, 'x3,y3: %d,%d' % (int(self.curDstRoadCorners[2][0]), int(self.curDstRoadCorners[2][1]) - 1), (int(self.curDstRoadCorners[2][0]) + 25, int(self.curDstRoadCorners[2][1]) - 15), font, 1, (255, 0, 0), 2)
-                cv2.putText(self.diag4, 'x4,y4: %d,%d' % (int(self.curDstRoadCorners[3][0]), int(self.curDstRoadCorners[3][1]) - 1), (int(self.curDstRoadCorners[3][0]) - 275, int(self.curDstRoadCorners[3][1]) - 15), font, 1, (255, 0, 0), 2)
+                cv2.putText(self.diag4,
+                            'x1,y1: %d,%d' % (int(self.curDstRoadCorners[0][0]), int(self.curDstRoadCorners[0][1]) - 1),
+                            (int(self.curDstRoadCorners[0][0]) - 275, int(self.curDstRoadCorners[0][1]) - 15), font, 1,
+                            (255, 0, 0), 2)
+                cv2.putText(self.diag4,
+                            'x2,y2: %d,%d' % (int(self.curDstRoadCorners[1][0]), int(self.curDstRoadCorners[1][1]) - 1),
+                            (int(self.curDstRoadCorners[1][0]) + 25, int(self.curDstRoadCorners[1][1]) - 15), font, 1,
+                            (255, 0, 0), 2)
+                cv2.putText(self.diag4,
+                            'x3,y3: %d,%d' % (int(self.curDstRoadCorners[2][0]), int(self.curDstRoadCorners[2][1]) - 1),
+                            (int(self.curDstRoadCorners[2][0]) + 25, int(self.curDstRoadCorners[2][1]) - 15), font, 1,
+                            (255, 0, 0), 2)
+                cv2.putText(self.diag4,
+                            'x4,y4: %d,%d' % (int(self.curDstRoadCorners[3][0]), int(self.curDstRoadCorners[3][1]) - 1),
+                            (int(self.curDstRoadCorners[3][0]) - 275, int(self.curDstRoadCorners[3][1]) - 15), font, 1,
+                            (255, 0, 0), 2)
 
                 # draw circles of destination points
-                cv2.circle(self.diag4, (int(self.curDstRoadCorners[0][0]), int(self.curDstRoadCorners[0][1])), 10, (255, 64, 64), 10)
-                cv2.circle(self.diag4, (int(self.curDstRoadCorners[1][0]), int(self.curDstRoadCorners[1][1])), 10, (255, 64, 64), 10)
-                cv2.circle(self.diag4, (int(self.curDstRoadCorners[2][0]), int(self.curDstRoadCorners[2][1])), 10, (255, 64, 64), 10)
-                cv2.circle(self.diag4, (int(self.curDstRoadCorners[3][0]), int(self.curDstRoadCorners[3][1])), 10, (255, 64, 64), 10)
+                cv2.circle(self.diag4, (int(self.curDstRoadCorners[0][0]), int(self.curDstRoadCorners[0][1])), 10,
+                           (255, 64, 64), 10)
+                cv2.circle(self.diag4, (int(self.curDstRoadCorners[1][0]), int(self.curDstRoadCorners[1][1])), 10,
+                           (255, 64, 64), 10)
+                cv2.circle(self.diag4, (int(self.curDstRoadCorners[2][0]), int(self.curDstRoadCorners[2][1])), 10,
+                           (255, 64, 64), 10)
+                cv2.circle(self.diag4, (int(self.curDstRoadCorners[3][0]), int(self.curDstRoadCorners[3][1])), 10,
+                           (255, 64, 64), 10)
 
     # function to project the edges into a plane
     # this function is for when we are now at greater than 50% confidence in
@@ -575,7 +594,8 @@ class ProjectionManager:
             [lane_info[3], lane_info[4], lane_info[5], lane_info[6]])
 
         # generate grayscaled map image
-        projected_roadsurface, M = self.unwarp_lane(np.copy(masked_edges), self.curSrcRoadCorners, self.curDstRoadCorners)
+        projected_roadsurface, M = self.unwarp_lane(np.copy(masked_edges), self.curSrcRoadCorners,
+                                                    self.curDstRoadCorners)
         imgftr.setEdgeProjection(projected_roadsurface)
 
         # generate full color projection
@@ -635,7 +655,8 @@ class ProjectionManager:
 
                 # diag 4 screen - road edges with masked out area shown
                 # projected
-                self.diag4, M = self.unwarp_lane(imgftr.makefull(self.diag1), self.curSrcRoadCorners, self.curDstRoadCornersx)
+                self.diag4, M = self.unwarp_lane(imgftr.makefull(self.diag1), self.curSrcRoadCorners,
+                                                 self.curDstRoadCornersx)
 
     # warp the perspective view to planar view
     def curWarp(self, imgftr, image):
@@ -775,7 +796,8 @@ class ProjectionManager:
         for i in range(nlanes):
             leftLine = np.poly1d(lines[i].currentFit)
             rightLine = np.poly1d(lines[i + 1].currentFit)
-            if (leftLine([self.projectedY])[0] < sweepPoly([self.projectedY])[0] and sweepPoly([self.projectedY])[0] < rightLine([self.projectedY])[0]):
+            if (leftLine([self.projectedY])[0] < sweepPoly([self.projectedY])[0] and sweepPoly([self.projectedY])[0] <
+                rightLine([self.projectedY])[0]):
                 sweepLane = i
         return sweepLane
 
@@ -866,7 +888,8 @@ class ProjectionManager:
             cv2.drawContours(perspectiveImage, [imgpts[:4]], -1, (0, 255, 0), 1)
 
     def drawRoadSquares_tight(self, perspectiveImage, squares, road_idx=0):
-        color_list = [(0, 255, 0), (255, 0, 0), (0,0,255)]
+        color_list = [(0, 255, 255), (255, 0, 0), (0, 0, 255)]
+        imgpts_list = []
         for square in squares:
             be_square = np.float32(
                 [[square[0][0], square[0][1], 0],
@@ -875,6 +898,35 @@ class ProjectionManager:
                  [square[1][0], square[1][1], 0]]).reshape(-1, 3)
             square = self.projectPoints(be_square)
             imgpts = np.int32(square).reshape(-1, 2)
+            imgpts_list.append(imgpts)
             # draw bottom of square
-            cv2.drawContours(perspectiveImage, [imgpts[:4]], -1, color_list[road_idx%len(color_list)], 1)
+            # cv2.drawContours(perspectiveImage, [imgpts[:4]], -1, color_list[road_idx % len(color_list)], 1)
 
+        # Following will draw the plane
+        if False:
+            fig = plt.figure(frameon=False)
+            ax = plt.Axes(fig, [0., 0., 1., 1.])
+            ax.axis('off')
+            fig.add_axes(ax)
+            ax.imshow(perspectiveImage)
+
+            for i in range(1, len(imgpts_list)):
+                # So the alpha range from 0.1 to 0.4
+                alpha = np.max((0.1,  0.3 - i / (len(imgpts_list)*2)))
+                for c_idx in range(3):
+                    c = np.array((imgpts_list[-i][c_idx % 4], imgpts_list[-i][c_idx % 4 + 1],
+                                  imgpts_list[-i - 1][c_idx % 4 + 1],  imgpts_list[-i - 1][c_idx % 4]))
+                    polygon = Polygon(
+                        c.reshape((-1, 2)),
+                        fill=True, facecolor=(0, 1, 1),
+                        edgecolor=(0, 1, 1), linewidth=1,
+                        alpha=alpha)
+                    ax.add_patch(polygon)
+                # Draw floor
+                c = np.array((imgpts_list[-i][3], imgpts_list[-i - 1][3], imgpts_list[-i - 1][0], imgpts_list[-i][0]))
+                polygon = Polygon(
+                    c.reshape((-1, 2)),
+                    fill=True, facecolor=(1, 0, 1),
+                    edgecolor=(1, 0, 1), linewidth=1,
+                    alpha=alpha)
+                ax.add_patch(polygon)
