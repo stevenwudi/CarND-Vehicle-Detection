@@ -4,12 +4,15 @@ Python class that handles image, projection and lanes, lines and vehicle propaga
 """
 import cv2
 import numpy as np
-from matplotlib import pyplot as plt
 
+from matplotlib import pyplot as plt
 from lib.imageFilters import ImageFilters
 from lib.lane import Lane
 from lib.line import Line
 from lib.projectionManager import ProjectionManager
+from lib.vehicle import Vehicle
+from lib.vehicleDetection import VehicleDetection
+from lib.vehicleTracking import VehicleTracking
 
 
 class RoadManager:
@@ -94,7 +97,9 @@ class RoadManager:
                                       self.projMgr.projectedY,
                                       debug=debug)
 
-        # vehicles
+        #############################################
+        ################  vehicles ##################
+        #############################################
         self.versionName = "CHOGRGB4"
         self.cspace = 'RGB'
         self.orient = 8
@@ -116,6 +121,7 @@ class RoadManager:
             self.cell_per_block,
             self.hog_channel,
             self.threshold)
+
         self.vehicleTracking = VehicleTracking(
             self.x,
             self.y,
@@ -188,7 +194,8 @@ class RoadManager:
             faint *= 0.75
         if (faint > 0.5 or (self.resized and faint > 0.4)) and curLane.adjacentRight and curLane.adjacentRLane is None:
             # print("threshold:", faint)
-            newRightLine = Line(self.right, self.x, self.y, self.projMgr.projectedX, self.projMgr.projectedY, self.maskDelta)
+            newRightLine = Line(self.right, self.x, self.y, self.projMgr.projectedX, self.projMgr.projectedY,
+                                self.maskDelta)
             newRightLine.createPolyFitRight(self.curImgFtr, curLane, faint=faint, resized=self.resized)
             if newRightLine.detected and newRightLine.lineClassified:
                 # print("adding right lane")
@@ -345,8 +352,10 @@ class RoadManager:
         self.roadsurface[:, :, 2] = rightLinemask
 
         # generate wireframe scanner rendering.
-        self.specialProjectedEffects = self.curImgFtr.miximg(self.roadsurface * 0, self.specialProjectedEffects, 1.0, 0.9)
-        self.specialPerspectiveEffects = self.curImgFtr.miximg(self.specialPerspectiveEffects * 0, self.specialPerspectiveEffects, 1.0, 0.9)
+        self.specialProjectedEffects = self.curImgFtr.miximg(self.roadsurface * 0, self.specialProjectedEffects, 1.0,
+                                                             0.9)
+        self.specialPerspectiveEffects = self.curImgFtr.miximg(self.specialPerspectiveEffects * 0,
+                                                               self.specialPerspectiveEffects, 1.0, 0.9)
         self.sweepLane = self.projMgr.sweep(self.specialProjectedEffects, self.curFrame, self.lines)
 
         self.curImgFtr.lane_vis = np.copy(self.curImgFtr.curImage.astype(np.uint8))
@@ -357,6 +366,33 @@ class RoadManager:
         self.projMgr.sweep(self.roadsurface, self.curFrame, self.lines)
         # create image lane image
         self.projMgr.drawRoadSquares_tight(self.curImgFtr.lane_vis, self.roadsquares)
+
+    def drawLaneStats(self, color=(224, 192, 0)):
+        font = cv2.FONT_HERSHEY_COMPLEX
+        if self.roadStraight:
+            text = 'Estimated lane curvature: road nearly straight'
+            cv2.putText(self.final, text,
+                        (30, 60), font, 1, color, 2)
+        elif self.radiusOfCurvature > 0.0:
+            text = 'Estimated lane curvature: center is %fm to the right'
+            cv2.putText(self.final, text % (
+                self.radiusOfCurvature), (30, 60), font, 1, color, 2)
+        else:
+            text = 'Estimated lane curvature: center is %fm to the left'
+            cv2.putText(self.final, text %
+                        (-self.radiusOfCurvature), (30, 60), font, 1, color, 2)
+
+        if self.lineBasePos < 0.0:
+            text = 'Estimated left of center: %5.2fcm'
+            cv2.putText(self.final, text %
+                        (-self.lineBasePos * 100), (30, 90), font, 1, color, 2)
+        elif self.lineBasePos > 0.0:
+            text = 'Estimated right of center: %5.2fcm'
+            cv2.putText(self.final, text % (
+                self.lineBasePos * 100), (30, 90), font, 1, color, 2)
+        else:
+            text = 'Estimated at center of road'
+            cv2.putText(self.final, text, (30, 90), font, 1, color, 2)
 
     def findVehicles(self, resized=False):
         """
@@ -385,40 +421,33 @@ class RoadManager:
         if self.scrType & 16 == 16:
             self.vehicleDetection.collectData(self.curFrame, self.vehicleScan, allPossibleWindows)
         else:
-            # add our vehicles into the search space
-            # to reduce search area
+            # add our vehicles into the search space to reduce search area
             for vehIdx in range(len(self.vehicles)):
                 if self.vehicles[vehIdx].mode > 2:
-                    self.roadGrid = self.vehicles[vehIdx].updateVehicle(
-                        self.roadGrid, np.copy(self.curImgFtr.curImage))
+                    self.roadGrid = self.vehicles[vehIdx].updateVehicle(self.roadGrid, np.copy(self.curImgFtr.curImage))
                 elif len(self.vehicles[vehIdx].windows) > 0:
                     lane = self.vehicles[vehIdx].lane
                     yidx = self.vehicles[vehIdx].yidx
                     window = self.vehicles[vehIdx].windows[0]
                     # print("vehIdx: ", lane, yidx, window, vehIdx)
-                    self.roadGrid.insertTrackedObject(
-                        lane, yidx, window, vehIdx)
+                    self.roadGrid.insertTrackedObject(lane, yidx, window, vehIdx)
 
             # detect any vehicles
-            self.roadGrid = self.vehicleDetection.detectVehicles(
-                self.vehicleScan, self.roadGrid)
+            self.roadGrid = self.vehicleDetection.detectVehicles(self.vehicleScan, self.roadGrid)
 
             # get updated location for our existing vehicles
             # and check to make sure our vehicles are still there
             vehicleDropList = []
             for vehIdx in range(len(self.vehicles)):
-                self.roadGrid = self.vehicles[vehIdx].updateVehicle(
-                    self.roadGrid, np.copy(self.curImgFtr.curImage))
+                self.roadGrid = self.vehicles[vehIdx].updateVehicle(self.roadGrid, np.copy(self.curImgFtr.curImage))
                 if not self.vehicleTracking.isVehicleThere(
                         np.copy(self.curImgFtr.curImage),
                         self.roadGrid, self.mainLaneIdx,
                         self.vehicles, vehIdx):
                     vehicleDropList.append(self.vehicles[vehIdx])
 
-            self.possibleVehicleWindows = \
-                self.roadGrid.getFoundAndNotOccludedWindows()
-            self.hiddenVehicleWindows = \
-                self.roadGrid.getOccludedWindows()
+            self.possibleVehicleWindows = self.roadGrid.getFoundAndNotOccludedWindows()
+            self.hiddenVehicleWindows = self.roadGrid.getOccludedWindows()
 
             # did we lose any vehicles?
             for dropped_vehicle in vehicleDropList:
@@ -459,8 +488,7 @@ class RoadManager:
                 self.roadsurface)
 
         # unwarp the roadsurface
-        self.roadunwarped = self.projMgr.curUnWarp(
-            self.curImgFtr, self.roadsurface)
+        self.roadunwarped = self.projMgr.curUnWarp(self.roadsurface)
 
         # print("self.roadunwarped:", self.roadunwarped.shape)
         # print("self.curImgFtr.curImage:", self.curImgFtr.curImage.shape)
@@ -470,7 +498,6 @@ class RoadManager:
 
         # add vehicle detection and tracking visuals
         font = cv2.FONT_HERSHEY_COMPLEX
-        # TODO: Wudi comment below
         self.projMgr.drawRoadSquares(self.final, self.roadsquares)
 
         self.final = self.curImgFtr.miximg(self.final, self.specialPerspectiveEffects, 1.0, 1.0)
@@ -528,28 +555,21 @@ class RoadManager:
         if self.debug:
             # our own diag screen
             self.diag1 = np.copy(self.projMgr.diag4)
-            cv2.putText(self.projMgr.diag4, 'Frame: %d' %
-                        (self.curFrame), (30, 30), font, 1, (255, 255, 0), 2)
-            cv2.putText(self.diag1, 'Frame: %d' %
-                        (self.curFrame), (30, 30), font, 1, (255, 0, 0), 2)
+            cv2.putText(self.projMgr.diag4, 'Frame: %d' % self.curFrame, (30, 30), font, 1, (255, 255, 0), 2)
+            cv2.putText(self.diag1, 'Frame: %d' % self.curFrame, (30, 30), font, 1, (255, 0, 0), 2)
             for i in range(len(self.lines)):
                 self.lines[i].scatter_plot(self.diag1)
                 self.lines[i].polyline(self.diag1)
                 self.lines[i].scatter_plot(self.projMgr.diag4)
                 self.lines[i].polyline(self.projMgr.diag4)
-                # self.projMgr.diag3 = \
-                #     self.lines[i].applyReverseLineMask(self.projMgr.diag3)
-
                 # draw bottom of lane line point if not at bottom
                 if self.lines[i].bottomProjectedY < self.projMgr.projectedY:
                     cv2.circle(self.projMgr.diag4,
                                (int(self.lines[i].pixelBasePos),
                                 int(self.lines[i].bottomProjectedY)),
                                10, (64, 64, 255), 10)
-                    linetext = "x%d,y%d: %d,%d" % \
-                               (i, i,
-                                int(self.lines[i].pixelBasePos),
-                                int(self.lines[i].bottomProjectedY))
+                    linetext = "x%d,y%d: %d,%d" % (
+                    i, i, int(self.lines[i].pixelBasePos), int(self.lines[i].bottomProjectedY))
                     if self.lines[i].side == self.left:
                         cv2.putText(self.projMgr.diag4, linetext,
                                     (int(self.lines[i].pixelBasePos - 275),
@@ -566,8 +586,7 @@ class RoadManager:
                              self.lines[i].confidence * 100,
                              self.lines[i].detected),
                             (30, 60 + 90 * i), font, 1, (255, 255, 0), 2)
-                if (self.lines[i].radiusOfCurvature is not None and
-                            self.lines[i].lineBasePos is not None):
+                if (self.lines[i].radiusOfCurvature is not None and self.lines[i].lineBasePos is not None):
                     text = 'Line %d: RoC: %fm, DfVC: %fcm'
                     cv2.putText(self.projMgr.diag4, text %
                                 (i, self.lines[i].radiusOfCurvature,
@@ -598,11 +617,13 @@ class RoadManager:
 
             if self.boosting > 0.0:
                 y = 90 * len(self.lines)
-                cv2.putText(self.projMgr.diag4, 'Boosting @ %f%%' % self.boosting, (30, 60 + y), font, 1, (128, 128, 192), 2)
+                cv2.putText(self.projMgr.diag4, 'Boosting @ %f%%' % self.boosting, (30, 60 + y), font, 1,
+                            (128, 128, 192), 2)
 
             self.projMgr.diag4 = self.curImgFtr.miximg(self.projMgr.diag4, self.roadsurface, 1.0, 2.0)
             self.projMgr.diag2 = self.curImgFtr.miximg(self.projMgr.diag2, self.roadunwarped, 1.0, 0.5)
-            self.projMgr.diag1 = self.curImgFtr.miximg(self.projMgr.diag1, self.roadunwarped[self.mid:self.y, :, :], 1.0, 2.0)
+            self.projMgr.diag1 = self.curImgFtr.miximg(self.projMgr.diag1, self.roadunwarped[self.mid:self.y, :, :],
+                                                       1.0, 2.0)
 
             # generate the window positions
             if self.scrType & 5 == 5:
@@ -616,6 +637,7 @@ class RoadManager:
                 print("complete_scan_windows=", windows)
                 # self.vehicleDetection.draw_boxes(self.projMgr.diag3, windows)
             else:
+                mainLane = self.lanes[self.mainLaneIdx]
                 if mainLane.lines[mainLane.left].adjacentLeft:
                     self.projMgr.draw_estimated_lane_line_location(
                         self.projMgr.diag3,
@@ -724,30 +746,3 @@ class RoadManager:
                                 font, 0.50,
                                 (192, 192, 192), 2)
                         i += 1
-
-    def drawLaneStats(self, color=(224, 192, 0)):
-        font = cv2.FONT_HERSHEY_COMPLEX
-        if self.roadStraight:
-            text = 'Estimated lane curvature: road nearly straight'
-            cv2.putText(self.final, text,
-                        (30, 60), font, 1, color, 2)
-        elif self.radiusOfCurvature > 0.0:
-            text = 'Estimated lane curvature: center is %fm to the right'
-            cv2.putText(self.final, text % (
-                self.radiusOfCurvature), (30, 60), font, 1, color, 2)
-        else:
-            text = 'Estimated lane curvature: center is %fm to the left'
-            cv2.putText(self.final, text %
-                        (-self.radiusOfCurvature), (30, 60), font, 1, color, 2)
-
-        if self.lineBasePos < 0.0:
-            text = 'Estimated left of center: %5.2fcm'
-            cv2.putText(self.final, text %
-                        (-self.lineBasePos * 100), (30, 90), font, 1, color, 2)
-        elif self.lineBasePos > 0.0:
-            text = 'Estimated right of center: %5.2fcm'
-            cv2.putText(self.final, text % (
-                self.lineBasePos * 100), (30, 90), font, 1, color, 2)
-        else:
-            text = 'Estimated at center of road'
-            cv2.putText(self.final, text, (30, 90), font, 1, color, 2)

@@ -643,8 +643,8 @@ class ProjectionManager:
         return warped
 
     # unwarp the planar view back to perspective view
-    def curUnWarp(self, imgftr, image):
-        unwarped, M = self.unwarp_lane_back(image, self.curDstRoadCorners, self.curSrcRoadCorners)
+    def curUnWarp(self, image):
+        unwarped, M = self.unwarp_lane_back(image)
         return unwarped
 
     # an attempt to dampen the bounce of the car and the road surface.
