@@ -401,6 +401,11 @@ class RoadManager:
         :return:
         """
         self.vehicleScan = np.copy(self.curImgFtr.getRoadProjection())
+
+        # fig = plt.figure();
+        # plt.imshow(self.vehicleScan, cmap='gray');
+        # fig.savefig('./output_images/car_detection_maskrcnn/vehicleScan.png', bbox_inches='tight')
+
         if self.curFrame > 1:
             if self.curFrame == 2:
                 if resized:
@@ -433,6 +438,19 @@ class RoadManager:
                     self.roadGrid.insertTrackedObject(lane, yidx, window, vehIdx)
 
             # detect any vehicles
+            cls_boxes, cls_segms, prediction_row = self.vehicleDetection.maskRCNN.vehicleDetection(self.curImgFtr.curImage.astype(np.uint8))
+            binary_mask = self.vehicleDetection.maskRCNN.binary_mask(cls_boxes, cls_segms)
+
+            # generate full color projection
+            projected_masks, M = self.projMgr.unwarp_lane(binary_mask.astype(np.uint8),
+                                                    self.projMgr.curSrcRoadCorners,
+                                                    self.projMgr.curDstRoadCorners)
+
+            # fig = plt.figure(); plt.imshow(projected_masks, cmap='gray');
+            # fig.savefig('./output_images/car_detection_maskrcnn/projected_masks.png', bbox_inches='tight')
+            # visualise the detection
+            # self.vehicleDetection.maskRCNN.vis(self.curImgFtr.curImage.astype(np.uint8), cls_boxes, cls_segms)
+
             self.roadGrid = self.vehicleDetection.detectVehicles(self.vehicleScan, self.roadGrid)
 
             # get updated location for our existing vehicles

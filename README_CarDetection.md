@@ -76,3 +76,15 @@ SVC decision function (threshold: 300)                           | Multiscale fu
 :-------------------------:                      |:-------------------------:            |                                  
 ![](./output_images/car_detection/decision_300.png)  |  ![](./output_images/car_detection/decision_300_heatmap.png) |  
 
+## Mask-RCNN pipeline
+
+### MASKRCNN introduction
+
+Test image 5 |vehicle scan projection   |projected_masks  |
+ :-------------------------:                      |:-------------------------:            |         :-------------------------:                                             |
+ ![](./output_images/car_detection_maskrcnn/test5.jpg) | ![](./output_images/car_detection_maskrcnn/vehicleScan.png)  |  ![](./output_images/car_detection_maskrcnn/projected_masks.png) |  
+
+
+
+
+## Video Pipeline

@@ -17,6 +17,7 @@ import numpy as np
 from lib.roadGrid import RoadGrid
 from skimage.feature import hog
 from sklearn.externals import joblib
+from lib.maskRCNN import maskRCNN
 
 
 # a class for wrapping our SVM trained HOG vehicle detector.
@@ -43,6 +44,9 @@ class VehicleDetection:
             self.X_scaler = joblib.load(self.trained_scalar)
         self.threshold = threshold
         self.dataFileNamePattern = dataFileNamePattern
+
+        # Using mask RCNN for vehicle detection
+        self.maskRCNN = maskRCNN()
 
     # Define a function to change the detector's threshold
     def set_threshold(self, new_threshold):
