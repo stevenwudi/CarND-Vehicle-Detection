@@ -78,6 +78,19 @@ SVC decision function (threshold: 300)                           | Multiscale fu
 
 ## Mask-RCNN pipeline
 
+In terms of accuracy and efficiency, I consider Deep Neural Network will inevitably replace the HOG+SVM sliding window
+approach.
+I recently participated in a [CVPR Workshop on Autonomous Driving challenge](https://www.kaggle.com/c/cvpr-2018-autonomous-driving).
+A [MaskRCNN](https://classroom.udacity.com/nanodegrees/nd013/parts/last-viewed) is deployed and we have achieved the 4th(6th)
+ranking among some tech companies, e.g., Megvii, DIDI, Nvidia, etc. Not bad.
+
+So for the video piple, I decided to adopte the Mask-RCNN based network. By directly using
+the trained network, we can find the network generalises really well for unseen images.
+(Training images are collected from the busy streets of Beijing and the test images/videos are from
+American Highways).
+
+We 
+
 ### MASKRCNN introduction
 
 Test image 5 |vehicle scan projection   |projected_masks  |
@@ -88,3 +101,14 @@ Test image 5 |vehicle scan projection   |projected_masks  |
 
 
 ## Video Pipeline
+
+
+# Future thoughts
+
+Some points for future improvement:
+
+* Semantic segmentation for lane finding. 
+I have experimented using FCN based network trained on Cityscape but the fail attempt 
+shows that dense prediction is still a challenge for generalisation.([Robust Vision Challenge](http://www.robustvision.net/index.php) would
+be a good platform for further study). [Kitti](http://www.cvlibs.net/datasets/kitti/) also host lane finding challenge.
+Baidu [ApolloScape](http://apolloscape.auto/) dataset provide another alternatives. 

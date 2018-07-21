@@ -254,9 +254,7 @@ def box_results_with_nms_and_limit(scores, boxes):  # NOTE: support single-batch
 
     # Limit to max_per_image detections **over all classes**
     if cfg.TEST.DETECTIONS_PER_IM > 0:
-        image_scores = np.hstack(
-            [cls_boxes[j][:, -1] for j in range(1, num_classes)]
-        )
+        image_scores = np.hstack([cls_boxes[j][:, -1] for j in range(1, num_classes)])
         if len(image_scores) > cfg.TEST.DETECTIONS_PER_IM:
             image_thresh = np.sort(image_scores)[-cfg.TEST.DETECTIONS_PER_IM]
             for j in range(1, num_classes):
@@ -432,7 +430,7 @@ def binary_mask(boxes, segms=None, thresh=0.9):
         boxes, segms, classes = convert_from_cls_format(boxes, segms)
 
     if boxes is None or boxes.shape[0] == 0 or max(boxes[:, 4]) < thresh:
-        return
+        return [], [], []
 
     if segms is not None:
         masks = mask_util.decode(segms)
@@ -441,14 +439,21 @@ def binary_mask(boxes, segms=None, thresh=0.9):
     sorted_inds = np.argsort(-areas)
 
     masks_all = np.zeros(shape=(masks.shape[0], masks.shape[1]))
+    instance_count = 0
+    scores = []
+    instance_id = []
     for i in sorted_inds:
         score = boxes[i, -1]
         if score < thresh:
             continue
         # show mask
         if segms is not None and len(segms) > i:
-            masks_all += masks[:, :, i]
+            instance_count += 1
+            scores.append(score)
+            instance_id.append(instance_count)
+            mask_num = instance_count * 10 + 1
+            masks_all += mask_num * masks[:, :, i]
 
-    return masks_all
+    return masks_all, scores, instance_id
 
 

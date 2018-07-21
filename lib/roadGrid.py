@@ -41,6 +41,7 @@ class RoadGrid:
             box = '%s+%02d' % (laneAlpha, self.maxkey - i)
             self.mapping[box] = {
                 'window': boxes['%d' % (i)],
+                'instance_mask': None,
                 'found': False,
                 'occluded': False,
                 'tracked': False,
@@ -57,11 +58,11 @@ class RoadGrid:
                 vehStr = '%d' % (vehIdx)
                 self.vehicle_list[vehStr] = box
 
-    def setFound(self, box):
+    def setFound(self, box, instance_mask=0):
         self.mapping[box]['found'] = True
+        self.mapping[box]['instance_mask'] = instance_mask
         # print("from setFound...")
-        self.calculateVoxelOcclusionAndObjectSeparation(
-            box, forceIntoOne=True)
+        self.calculateVoxelOcclusionAndObjectSeparation(box, forceIntoOne=True)
 
     def setOccluded(self, box):
         if box in self.mapping:
@@ -110,6 +111,20 @@ class RoadGrid:
                 self.mapping[map]['vehicle'] is not None and
                 self.mapping[map]['vehicle'] == vehIdx]
 
+    def getFoundAndNotOccludedInstanceInObject(self, iobjIdx):
+        instances = [self.mapping[map]['instance_mask']
+                     for map in self.object_list[iobjIdx]
+                     if self.mapping[map]['found'] and
+                     not self.mapping[map]['occluded']]
+        i_id, count = np.unique(instances, return_counts=True)
+        if len(i_id) >= 2:
+            #print('Detection error for assigning  MaskRCNN')
+            instance = instances[np.argmax(count)]
+        else:
+            instance = instances[0]
+
+        return instance
+
     def getFoundAndNotOccludedBoxesInObject(self, objIdx):
         return [map for map in self.object_list[objIdx]
                 if self.mapping[map]['found'] and
@@ -146,10 +161,15 @@ class RoadGrid:
     def getObjectListWindows(self, i):
         return [self.mapping[map]['window'] for map in self.object_list[i]]
 
-    # we will use constrain propagation to limit our search for vehicle testing
-    # by using voxel occlusion testing to find occluded boxes in the grid
-    def calculateVoxelOcclusionAndObjectSeparation(
-            self, box, vehicle=None, forceIntoOne=False):
+    def calculateVoxelOcclusionAndObjectSeparation(self, box, vehicle=None, forceIntoOne=False):
+        """
+        use constrain propagation to limit our search for vehicle testing
+        by using voxel occlusion testing to find occluded boxes in the grid
+        :param box:
+        :param vehicle:
+        :param forceIntoOne:
+        :return:
+        """
         if not self.mapping[box]['occluded']:
             # find the two rays from our camera that hits the edges
             # of our box and generate a set of ray polys.
@@ -159,12 +179,9 @@ class RoadGrid:
             polyRay1 = self.generatePolyRay(self.x0, self.y0, x1, y1)
             polyRay2 = self.generatePolyRay(self.x0, self.y0, x2, y2)
 
-            newobject = True
-            # until our rays hit something found before
-            # then we are a new object
-            # else we are part of a larger object.
-            # (or it could be something that is too close
-            #  to tell apart using this method)
+            # until our rays hit something found before then we are a new object
+            # else we are part of a larger object. (or it could be something that
+            #  is too close to tell apart using this method
             mapping = [n for n in self.mapping.keys()]
             mapping.sort()
             for map in mapping:
@@ -173,18 +190,13 @@ class RoadGrid:
                 boxMidY = (window[0][1] + window[1][1]) / 2
                 rayX1 = polyRay1(np.array([boxMidY]))[0]
                 rayX2 = polyRay2(np.array([boxMidY]))[0]
-                # print("rayX1", rayX1, "rayX2", rayX2, boxMidY)
-                # print("boxX1", boxX1, "boxX2", boxX2, boxMidY)
-                # print("box", box, "map", map)
 
-                # three choices for a box to be occluded by our
-                # box: ray1 hits, ray2 hits, or the box is
-                #      completely within the two rays
+                # three choices for a box to be occluded by our box:
+                # ray1 hits, ray2 hits, or the box is completely within the two rays
                 if (((boxX1 <= rayX1 and boxX2 >= rayX1) or
                          (boxX1 <= rayX2 and boxX2 >= rayX2) or
-                         (rayX1 < boxX1 and rayX1 < boxX2 and
-                                  rayX2 > boxX1 and rayX2 > boxX2)) and
-                        (y1 > boxMidY)):
+                         (rayX1 < boxX1 and rayX1 < boxX2 and rayX2 > boxX1 and rayX2 > boxX2)) and
+                        (y1 >= boxMidY)):
                     # print("Hit!")
 
                     # is our box is a vehicle...?
@@ -208,9 +220,8 @@ class RoadGrid:
                             # print("1. this should not happen!")
                             self.mapping[map]['occluded'] = True
 
-                    # stop! we found something already
-                    # occluded - this box maybe be something
-                    # larger, so adopt its object or vehicle
+                    # stop! we found something already occluded - this box maybe be
+                    # something larger, so adopt its object or vehicle
                     elif self.mapping[map]['occluded'] and forceIntoOne:
                         # the other voxel is a vehicle!
                         if self.mapping[map]['vehicle'] is not None:
@@ -283,8 +294,7 @@ class RoadGrid:
                         # but we don't belong in the same object
                         if self.mapping[box]['object'] is not None and \
                                         self.mapping[map]['object'] is not None \
-                                and self.mapping[box]['object'] != \
-                                        self.mapping[map]['object']:
+                                and self.mapping[box]['object'] != self.mapping[map]['object']:
                             # we seem to be occluding another object!
                             # just set their occluded flag
                             # print("6. new location detected!")
@@ -336,8 +346,7 @@ class RoadGrid:
         for box in self.mapping.keys():
             if boxpattern.match(box):
                 window = self.mapping[box]['window']
-                if (window[0][1] < ycoordinate and
-                            ycoordinate < window[1][1]):
+                if window[0][1] < ycoordinate and ycoordinate < window[1][1]:
                     return int(box.replace(laneAscii, ''))
 
         # if not, return an estimate

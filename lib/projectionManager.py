@@ -742,7 +742,7 @@ class ProjectionManager:
         squares = []
 
         # horizontal lines
-        for i in range(int(self.projectedY / 128)):
+        for i in range(int(self.projectedY / 128) + 1):
             y1 = 128 * i + delta
             x1 = leftPolynomial([y1])
             x2 = roadleftPolynomial([y1])
@@ -796,8 +796,7 @@ class ProjectionManager:
         for i in range(nlanes):
             leftLine = np.poly1d(lines[i].currentFit)
             rightLine = np.poly1d(lines[i + 1].currentFit)
-            if (leftLine([self.projectedY])[0] < sweepPoly([self.projectedY])[0] and sweepPoly([self.projectedY])[0] <
-                rightLine([self.projectedY])[0]):
+            if leftLine([self.projectedY])[0] < sweepPoly([self.projectedY])[0] and sweepPoly([self.projectedY])[0] < rightLine([self.projectedY])[0]:
                 sweepLane = i
         return sweepLane
 
@@ -901,6 +900,23 @@ class ProjectionManager:
             # draw bottom of square
             # cv2.drawContours(perspectiveImage, [imgpts[:4]], -1, color_list[road_idx % len(color_list)], 1)
 
+        poly_img = np.zeros_like(perspectiveImage)
+        poly_lines = np.zeros_like(perspectiveImage)
+        for i in range(1, len(imgpts_list)):
+            # So the alpha range from 0.1 to 0.4
+            for c_idx in range(3):
+                contours = np.array((imgpts_list[-i][c_idx % 4], imgpts_list[-i][c_idx % 4 + 1],
+                              imgpts_list[-i - 1][c_idx % 4 + 1], imgpts_list[-i - 1][c_idx % 4]))
+                #cv2.fillPoly(poly_img, pts=[contours], color=(0, 255, 255))
+                cv2.polylines(poly_lines, [contours], True, (0, 255, 0))
+            # Draw floor
+            contours = np.array((imgpts_list[-i][3], imgpts_list[-i - 1][3], imgpts_list[-i - 1][0], imgpts_list[-i][0]))
+            cv2.fillPoly(poly_img, pts=[contours], color=(255, 0, 255))
+            cv2.polylines(poly_lines, [contours], 1, (255, 0, 0))
+
+        out = cv2.addWeighted(perspectiveImage.astype(np.uint8), 1.0, poly_img.astype(np.uint8), 0.3, 0)
+        self.curImgRoad = cv2.addWeighted(out.astype(np.uint8), 1.0, poly_lines.astype(np.uint8), 1.0, 0)
+
         # Following will draw the plane
         if False:
             fig = plt.figure(frameon=False)
@@ -911,10 +927,10 @@ class ProjectionManager:
 
             for i in range(1, len(imgpts_list)):
                 # So the alpha range from 0.1 to 0.4
-                alpha = np.max((0.1,  0.3 - i / (len(imgpts_list)*2)))
+                alpha = np.max((0.1, 0.3 - i / (len(imgpts_list) * 2)))
                 for c_idx in range(3):
                     c = np.array((imgpts_list[-i][c_idx % 4], imgpts_list[-i][c_idx % 4 + 1],
-                                  imgpts_list[-i - 1][c_idx % 4 + 1],  imgpts_list[-i - 1][c_idx % 4]))
+                                  imgpts_list[-i - 1][c_idx % 4 + 1], imgpts_list[-i - 1][c_idx % 4]))
                     polygon = Polygon(
                         c.reshape((-1, 2)),
                         fill=True, facecolor=(0, 1, 1),

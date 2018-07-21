@@ -141,7 +141,7 @@ class RoadManager:
 
         # resulting image
         self.final = None
-
+        self.selfie_size = (160, 80)
         # for debugging only
         if self.debug:
             self.diag1 = np.zeros((self.y, self.x, 3), dtype=np.float32)
@@ -150,17 +150,14 @@ class RoadManager:
         faint = -(curLane.maskvalue / 128)
         if self.resized:
             faint *= 0.75
-        if ((np.absolute(faint) > 0.5 or
-                 (self.resized and np.absolute(faint) > 0.4)) and
-                curLane.adjacentLeft and
-                    curLane.adjacentLLane is None):
+        if ((np.absolute(faint) > 0.5 or (self.resized and np.absolute(faint) > 0.4)) and
+                curLane.adjacentLeft and curLane.adjacentLLane is None):
             # print("threshold:", faint)
             newLeftLine = Line(self.left, self.x, self.y,
                                self.projMgr.projectedX,
                                self.projMgr.projectedY,
                                self.maskDelta)
-            newLeftLine.createPolyFitLeft(
-                self.curImgFtr, curLane, faint=faint, resized=self.resized)
+            newLeftLine.createPolyFitLeft(self.curImgFtr, curLane, faint=faint, resized=self.resized)
             if newLeftLine.detected and newLeftLine.lineClassified:
                 # print("adding left lane")
                 newLeftLine.findBottomOfLine(self.curImgFtr)
@@ -401,7 +398,6 @@ class RoadManager:
         :return:
         """
         self.vehicleScan = np.copy(self.curImgFtr.getRoadProjection())
-
         # fig = plt.figure();
         # plt.imshow(self.vehicleScan, cmap='gray');
         # fig.savefig('./output_images/car_detection_maskrcnn/vehicleScan.png', bbox_inches='tight')
@@ -438,20 +434,13 @@ class RoadManager:
                     self.roadGrid.insertTrackedObject(lane, yidx, window, vehIdx)
 
             # detect any vehicles
-            cls_boxes, cls_segms, prediction_row = self.vehicleDetection.maskRCNN.vehicleDetection(self.curImgFtr.curImage.astype(np.uint8))
-            binary_mask = self.vehicleDetection.maskRCNN.binary_mask(cls_boxes, cls_segms)
-
+            cls_boxes, cls_segms, binary_mask, scores, instance_id = self.vehicleDetection.detectVehiclesDNN(self.curImgFtr.curImage.astype(np.uint8))
             # generate full color projection
-            projected_masks, M = self.projMgr.unwarp_lane(binary_mask.astype(np.uint8),
-                                                    self.projMgr.curSrcRoadCorners,
-                                                    self.projMgr.curDstRoadCorners)
-
+            projected_masks, M = self.projMgr.unwarp_lane(binary_mask, self.projMgr.curSrcRoadCorners, self.projMgr.curDstRoadCorners)
+            self.roadGrid = self.vehicleDetection.assignVehiclesRoadGrid(projected_masks, self.roadGrid, instance_id)
             # fig = plt.figure(); plt.imshow(projected_masks, cmap='gray');
             # fig.savefig('./output_images/car_detection_maskrcnn/projected_masks.png', bbox_inches='tight')
             # visualise the detection
-            # self.vehicleDetection.maskRCNN.vis(self.curImgFtr.curImage.astype(np.uint8), cls_boxes, cls_segms)
-
-            self.roadGrid = self.vehicleDetection.detectVehicles(self.vehicleScan, self.roadGrid)
 
             # get updated location for our existing vehicles
             # and check to make sure our vehicles are still there
@@ -476,17 +465,15 @@ class RoadManager:
                 found = False
                 boxes = self.roadGrid.getObjectList(objIdx)
                 for vehIdx in range(len(self.vehicles)):
-                    if self.vehicles[vehIdx].objectIsVehicle(
-                            boxes, self.roadGrid):
+                    if self.vehicles[vehIdx].objectIsVehicle(boxes, self.roadGrid):
                         self.roadGrid.setVehicle(boxes, vehIdx)
                         found = True
                 if not found:
                     ID = len(self.vehicles)
-                    vehicle = Vehicle(
-                        ID, self.lanes, self.projMgr, self.roadGrid, objIdx,
-                        np.copy(self.curImgFtr.curImage), self.mainLaneIdx)
+                    vehicle = Vehicle(ID, self.lanes, self.projMgr, self.roadGrid, objIdx,
+                                      np.copy(self.curImgFtr.curImage), self.mainLaneIdx,
+                                      binary_mask)
 
-                    # TODO - need depth ordering here..
                     self.vehicles.append(vehicle)
 
             # re-index our vehicles
@@ -496,6 +483,8 @@ class RoadManager:
         # draw the possible vehicles detected
         self.vehicleDetection.draw_boxes(self.roadsurface, self.possibleVehicleWindows)
         self.vehicleDetection.draw_boxes(self.roadsurface, self.hiddenVehicleWindows, color=(255, 0, 0))
+        # fig = plt.figure(); plt.imshow(self.roadsurface);
+        # fig.savefig('./output_images/car_detection_maskrcnn/roadsurface_occlusion.png', bbox_inches='tight')
 
         # draw closing circle when we first initialize
         # and then track
@@ -512,11 +501,11 @@ class RoadManager:
         # print("self.curImgFtr.curImage:", self.curImgFtr.curImage.shape)
 
         # create the final image
-        self.final = self.curImgFtr.miximg(self.curImgFtr.curImage, self.roadunwarped, 0.95, 0.75)
+        self.final = self.curImgFtr.miximg(self.projMgr.curImgRoad, self.roadunwarped, 0.95, 0.75)
 
         # add vehicle detection and tracking visuals
         font = cv2.FONT_HERSHEY_COMPLEX
-        self.projMgr.drawRoadSquares(self.final, self.roadsquares)
+        #self.projMgr.drawRoadSquares(self.final, self.roadsquares)
 
         self.final = self.curImgFtr.miximg(self.final, self.specialPerspectiveEffects, 1.0, 1.0)
 
@@ -533,25 +522,23 @@ class RoadManager:
                     self.specialPerspectiveEffects,
                     self.vehicles[vehIdx].contourInPerspective,
                     1.0, 0.20)
-            self.vehicles[vehIdx].drawScanning(
-                self.specialPerspectiveEffects, self.final)
+            self.vehicles[vehIdx].drawScanning(self.specialPerspectiveEffects, self.final)
 
             # calculate vehicle info positions
             y1 = 150 + 120 * vehIdx
-            y2 = y1 + 80
+            y2 = y1 + self.selfie_size[1]
             # print("y1, y2: ", y1, y2)
             if y2 < 720:
                 if len(self.vehicles[vehIdx].selfie.shape) > 2:
-                    self.final[y1:y2, startx:startx + 240] = \
-                        cv2.resize(
-                            self.vehicles[vehIdx].selfie,
-                            (240, 80), interpolation=cv2.INTER_AREA)
+                    car = cv2.resize(self.vehicles[vehIdx].selfie.astype(np.uint8), self.selfie_size, interpolation=cv2.INTER_AREA)
+                    car = cv2.cvtColor(car, cv2.cv2.COLOR_BGR2RGB)
+                    self.final[y1:y2, startx:startx + self.selfie_size[0]] = car
+
                 else:
                     selfie = self.vehicles[vehIdx].selfie
                     self.final[y1:y2, startx:startx + 240] = \
-                        cv2.resize(
-                            np.dstack((selfie, selfie, selfie)),
-                            (240, 80), interpolation=cv2.INTER_AREA)
+                        cv2.resize(np.dstack((selfie, selfie, selfie.astype(np.uint8))),
+                                   self.selfie_size, interpolation=cv2.INTER_AREA)
 
                 Text = self.vehicles[vehIdx].getTextStats()
                 i = 0
@@ -564,9 +551,9 @@ class RoadManager:
                     else:
                         cv2.putText(
                             self.final, text,
-                            (startx + 255, y1 - 10 + 15 * (i - 1)),
+                            (startx + 180, y1 - 10 + 15 * (i - 1)),
                             font, 0.50,
-                            (192, 192, 192), 2)
+                            (255, 255, 255), 2)
                     i += 1
 
         # draw dots and polyline

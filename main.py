@@ -18,7 +18,8 @@ def process_road_image(img, roadMgr, diagMgr, scrType=0, debug=False, resized=Fa
     roadMgr.findVehicles(resized=resized)
 
     # debug/diagnostics requested
-    if debug:
+    if False:
+    #if debug:
         # offset for text rendering overlay
         offset = 0
         color = (192, 192, 0)
@@ -89,6 +90,8 @@ if __name__ == "__main__":
     parser.add_argument('--notext', action='store_true', default=False, help='do not render text overlay')
     parser.add_argument('--collect', action='store_true', default=False, help=collectHelp)
     parser.add_argument('--infilename', type=str, default='./test_images/test5.jpg', help=inputHelp)
+    #parser.add_argument('--infilename', type=str, default='./test_videos/project_video.mp4', help=inputHelp)
+
     args = parser.parse_args()
 
     file_dir = '/'.join(args.infilename.split('/')[:-1])

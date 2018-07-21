@@ -9,6 +9,7 @@ There is a shared array of lanes instances - we are tracking multiple lanes!
 
 import cv2
 import numpy as np
+from matplotlib import pyplot as plt
 
 
 # Define a class to receive the characteristics of each lane created by a
@@ -152,9 +153,9 @@ class Lane:
         # get the initial points into the lines
         # height used to be half - but with 1920 pixels - we just need 20%
         # now...
-        lefthistogram = np.sum(masked_edge[int(height * 0.80):height, 0:int(width * 0.5)], axis=0)
+        lefthistogram = np.sum(masked_edge[int(height * 0.90):height, 0:int(width * 0.5)], axis=0)
         lefthistogram = lefthistogram.astype(np.float32)
-        righthistogram = np.sum(masked_edge[int(height * 0.80):height, int(width * 0.5):width], axis=0)
+        righthistogram = np.sum(masked_edge[int(height * 0.90):height, int(width * 0.5):width], axis=0)
         righthistogram = righthistogram.astype(np.float32)
         self.leftpos = np.argmax(lefthistogram)
         self.rightpos = np.argmax(righthistogram) + int(width / 2)
@@ -242,8 +243,7 @@ class Lane:
         self.lines[self.right].fitpoly2()
 
         # take and calculate some measurements
-        self.distance = self.lines[
-                            self.right].pixelBasePos - self.lines[self.left].pixelBasePos
+        self.distance = self.lines[self.right].pixelBasePos - self.lines[self.left].pixelBasePos
         self.lines[self.left].radius_in_meters(
             self.curImgFtr.throwDistance, self.distance)
         self.lines[self.left].meters_from_center_of_vehicle(self.distance)

@@ -10,7 +10,9 @@ import numpy as np
 class ImageFilters:
     # Initialize ImageFilter
 
-    def __init__(self, camCal, projectedX, projectedY, defaultThrowDistance=100.0, debug=False):
+    def __init__(self, camCal, projectedX, projectedY,
+                 defaultThrowDistance=52.0,
+                 debug=False):
         # set debugging
         self.debug = debug
 

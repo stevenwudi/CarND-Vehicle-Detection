@@ -6,10 +6,13 @@ There is now a shared array of instances of this class: lines.
 
 import cv2
 import numpy as np
+from matplotlib import pyplot as plt
 
-
-# Define a class to receive the characteristics of each line detection
 class Line:
+    """
+    A class to receive the characteristics of each line detection
+    """
+
     def __init__(self, side, x, y, projectedX, projectedY, maskDelta, n=10):
         # iterations to keep
         self.n = n
@@ -49,6 +52,9 @@ class Line:
         # distance in meters of vehicle center from the line
         self.lineBasePos = None
 
+        # neihours_to_count
+        self.window_height = 16
+
         # pixel base position
         self.pixelBasePos = None
         self.bottomProjectedY = projectedY
@@ -72,8 +78,7 @@ class Line:
         self.linePoly = None
 
         # mask for lanes
-        self.linemask = np.zeros(
-            (self.projectedY, self.projectedX), dtype=np.uint8)
+        self.linemask = np.zeros((self.projectedY, self.projectedX), dtype=np.uint8)
 
         # road manager request
         self.newYTop = None
@@ -83,13 +88,18 @@ class Line:
         self.lineType = "not found"
         self.line_color = ""
 
-    # create adjacent lane lines using an existing lane on the right
     def createPolyFitLeft(self, curImgFtr, rightLane, faint=1.0, resized=False):
+        """
+        create adjacent lane lines using an existing lane on the right
+        :param curImgFtr:
+        :param rightLane:
+        :param faint:
+        :param resized:
+        :return:
+        """
         # create new left line polynomial
-        polyDiff = np.polysub(rightLane.lines[rightLane.left].currentFit,
-                              rightLane.lines[rightLane.right].currentFit)
-        self.currentFit = np.polyadd(
-            rightLane.lines[rightLane.left].currentFit, polyDiff)
+        polyDiff = np.polysub(rightLane.lines[rightLane.left].currentFit, rightLane.lines[rightLane.right].currentFit)
+        self.currentFit = np.polyadd(rightLane.lines[rightLane.left].currentFit, polyDiff)
         polynomial = np.poly1d(self.currentFit)
         self.allY = rightLane.lines[rightLane.left].allY
         self.currentX = polynomial(self.allY)
@@ -104,10 +114,8 @@ class Line:
             self.detected = True
 
             # create linepoly
-            xy1 = np.column_stack(
-                (self.currentX + self.maskDelta, self.allY)).astype(np.int32)
-            xy2 = np.column_stack(
-                (self.currentX - self.maskDelta, self.allY)).astype(np.int32)
+            xy1 = np.column_stack((self.currentX + self.maskDelta, self.allY)).astype(np.int32)
+            xy2 = np.column_stack((self.currentX - self.maskDelta, self.allY)).astype(np.int32)
             self.linePoly = np.concatenate((xy1, xy2[::-1]), axis=0)
 
             # create mask
@@ -124,8 +132,7 @@ class Line:
 
             # classify the line
             # print("classifying the left line",self.side)
-            self.getLineStats(
-                curImgFtr.getRoadProjection(), faint=faint, resized=resized)
+            self.getLineStats(curImgFtr.getRoadProjection(), faint=faint, resized=resized)
 
             # set bottom of line
             x = polynomial([self.projectedY - 1])
@@ -184,8 +191,12 @@ class Line:
             x = polynomial([self.projectedY - 1])
             self.pixelBasePos = x[0]
 
-    # update adjacent lane lines using an existing lane on the right
     def updatePolyFitLeft(self, rightLane):
+        """
+        Update adjacent lane lines using an existing lane on the right
+        :param rightLane:
+        :return:
+        """
         # update new left line polynomial
         polyDiff = np.polysub(rightLane.lines[rightLane.left].currentFit,
                               rightLane.lines[rightLane.right].currentFit)
@@ -227,8 +238,12 @@ class Line:
             # create the accumulator
             self.bestFit = self.currentFit
 
-    # update adjacent lane lines using an existing lane on the left
     def updatePolyFitRight(self, leftLane):
+        """
+        Update adjacent lane lines using an existing lane on the left
+        :param leftLane:
+        :return:
+        """
         # update new right line polynomial
         polyDiff = np.polysub(leftLane.lines[leftLane.right].currentFit,
                               leftLane.lines[leftLane.left].currentFit)
@@ -270,8 +285,12 @@ class Line:
             # create the accumulator
             self.bestFit = self.currentFit
 
-    # function to find bottom of projection (camera cone)
     def findBottomOfLine(self, curImgFtr):
+        """
+        Function to find bottom of projection (camera cone)
+        :param curImgFtr:
+        :return:
+        """
         projection = curImgFtr.getRoadProjection()
         masked_projection = self.applyLineMask(projection)
         points = np.nonzero(masked_projection)
@@ -305,10 +324,13 @@ class Line:
         """
         self.pixelBasePos = basePos
 
-    # function to find lane lines points using a sliding window
-    # histogram given starting position
-    # return arrays x and y positions
     def find_lane_lines_points(self, masked_lines):
+        """
+        Function to find lane lines points using a sliding window
+        histogram given starting position, return arrays x and y positions
+        :param masked_lines:
+        :return:
+        """
         xval = []
         yval = []
         nrows = masked_lines.shape[0] - 1
@@ -367,10 +389,8 @@ class Line:
             self.currentX = polynomial(self.allY)
 
             # create linepoly
-            xy1 = np.column_stack(
-                (self.currentX + 15, self.allY)).astype(np.int32)
-            xy2 = np.column_stack(
-                (self.currentX - 15, self.allY)).astype(np.int32)
+            xy1 = np.column_stack((self.currentX + 15, self.allY)).astype(np.int32)
+            xy2 = np.column_stack((self.currentX - 15, self.allY)).astype(np.int32)
             self.linePoly = np.concatenate((xy1, xy2[::-1]), axis=0)
 
             # create mask
@@ -504,8 +524,7 @@ class Line:
 
         # detect if we have yellow lane line or white lane line
         if (red > np.absolute(200 * faint) and green < np.absolute(200 * faint) and blue < np.absolute(200 * faint)) \
-                or (red > np.absolute(200 * faint) and green > np.absolute(200 * faint) and blue < np.absolute(
-                        200 * faint)):
+                or (red > np.absolute(200 * faint) and green > np.absolute(200 * faint) and blue < np.absolute(200 * faint)):
             if faint == 1.0:
                 self.line_color = "yellow"
             elif not resized and np.absolute(faint) < 0.7 and faint > 0.5:
@@ -606,12 +625,6 @@ class Line:
         """
         Define conversions in x and y from pixels space to meters given lane line separation in pixels.
         NOTE: Only do calculation if it make sense - otherwise give previous answer.
-        :param throwDistanceInMeters:
-        :param distance:
-        :return:
-        """
-        if throwDistanceInMeters > 0.0 and self.allY is not None and self.currentX is not None and len(self.allY) > 0 \
-                and len(self.currentX) > 0 and len(self.allY) == len(self.currentX):
             ###################################################################
             # Note: We are using 100 instead of 30 here since our throw for the
             #       perspective transform is much longer. We estimate our throw
@@ -632,7 +645,13 @@ class Line:
             #       We are now calculating the throw Distance based on detected
             #       projection top.
             ###################################################################
-
+        :param throwDistanceInMeters:
+        :param distance:
+        :return:
+        """
+        if throwDistanceInMeters > 0.0 and self.allY is not None and \
+                        self.currentX is not None and len(self.allY) > 0 and \
+                        len(self.currentX) > 0 and len(self.allY) == len(self.currentX):
             # we have more pixels for Y changed from 720 to 1920
             # meters per pixel in y dimension
             ym_per_pix = throwDistanceInMeters / self.projectedY
@@ -649,9 +668,12 @@ class Line:
             self.radiusOfCurvature = ((1 + (2 * fit_cr[0] * ypoint + fit_cr[1]) ** 2) ** 1.5) / (2 * fit_cr[0])
         return self.radiusOfCurvature
 
-    # Define conversion in x off center from pixel space to meters given lane
-    # line separation in pixels
     def meters_from_center_of_vehicle(self, distance):
+        """
+        Define conversion in x off center from pixel space to meters given lane line separation in pixels
+        :param distance:
+        :return:
+        """
         # meteres per pixel in x dimension given lane line separation in pixels
         xm_per_pix = 3.7 / distance
         pixels_off_center = int(self.pixelBasePos - (self.projectedX / 2))

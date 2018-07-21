@@ -14,6 +14,7 @@ History:
             which uses PEP 8 as a base: http://pep8.org/.
 2017/01/17: Initial version converted to a class
 """
+from matplotlib import pyplot as plt
 
 import cv2
 import numpy as np
@@ -22,9 +23,7 @@ import webcolors
 
 class Vehicle:
     # initialization
-    def __init__(
-            self, ID, lanes, projMgr, roadGrid,
-            objIdx, perspectiveImage, mainLaneIdx):
+    def __init__(self, ID, lanes, projMgr, roadGrid, objIdx, perspectiveImage, mainLaneIdx, binary_mask=None):
         self.vehIdx = ID
         self.vehStr = '%d' % (ID)
         self.projMgr = projMgr
@@ -73,12 +72,14 @@ class Vehicle:
         # boxes
         self.boxes = roadGrid.getFoundAndNotOccludedBoxesInObject(objIdx)
 
+        # instance
+        self.instances = roadGrid.getFoundAndNotOccludedInstanceInObject(objIdx)
+
         # lane and location in the voxel grid the vehicle is on
         if len(self.boxes) > 0:
             self.lane, self.yidx = roadGrid.gridCoordinates(self.boxes[0])
             self.box = self.boxes[0]
-            self.xcenter, self.ycenter = self.windowCenter(
-                roadGrid.getBoxWindow(self.box))
+            self.xcenter, self.ycenter = self.windowCenter(roadGrid.getBoxWindow(self.box))
 
         else:
             self.lane = None
@@ -102,8 +103,7 @@ class Vehicle:
 
         # mask of vehicle
         self.maskedProfile = None
-        self.vehicleHeatMap = np.zeros(
-            (self.selfieY, self.selfieX), dtype=np.float32)
+        self.vehicleHeatMap = np.zeros((self.selfieY, self.selfieX), dtype=np.float32)
         self.vehicleMaskInPerspective = None
 
         # vehicle status and statistics
@@ -128,22 +128,19 @@ class Vehicle:
         #     6:VehicleLeaving
         #     7:VehicleLosted
         self.mode = 0
-
+        self.binary_mask = binary_mask
         # array of 3d and 2d points for bounding cube
         # do the calculations for the 2d and 3d bounding box
-        self.cube3d, self.cube2d = \
-            self.calculateRoughBoundingCubes(self.windows)
+        self.cube3d, self.cube2d = self.calculateRoughBoundingCubes(self.windows)
 
         # create the rough masked image for projection.
-        self.maskVertices, self.maskedImage = \
-            self.calculateMask(np.copy(perspectiveImage))
+        self.selfie, self.maskedImage = self.calculateMask(np.copy(perspectiveImage), binary_mask)
 
         # project the image for verification
-        self.selfie = self.takeProfileSelfie(self.maskedImage)
+        #self.selfie = self.takeProfileSelfie(self.maskedImage)
 
     # update vehicle status before tracking.
-    def updateVehicle(
-            self, roadGrid, perspectiveImage, x=None, y=None, lane=None):
+    def updateVehicle(self, roadGrid, perspectiveImage, x=None, y=None, lane=None):
         self.roadGrid = roadGrid
         if lane is not None:
             self.lane = lane
@@ -234,8 +231,7 @@ class Vehicle:
             self.calculateRoughBoundingCubes(self.windows)
 
         # create the rough masked image for projection.
-        self.maskVertices, self.maskedImage = \
-            self.calculateMask(np.copy(perspectiveImage))
+        self.maskVertices, self.maskedImage = self.calculateMask(np.copy(perspectiveImage))
 
         # project the image for verification
         self.selfie = self.takeProfileSelfie(self.maskedImage)
@@ -261,9 +257,6 @@ class Vehicle:
         return closest_name
 
     def modeColor(self):
-        # unknown state black
-        color = (0, 0, 0)
-
         # DetectionPhase:
         #     0:Initialized
         if self.mode == 0:
@@ -390,26 +383,19 @@ class Vehicle:
         # print("findMaxColor:", masked_projection.shape, "x,y", x, y)
         return x, y
 
-    # function to find color of vehicle
     def sampleColor(self, img):
+        """
+        function to find color of vehicle
+        :param img:
+        :return:
+        """
         # default to black
-        red = 0
-        green = 0
-        blue = 0
-
-        # experimental
         # get a center patch of the image
         # midw, midh = self.findMaxColor(img)
         midw, midh = self.findCenter(img)
-        imgR = img[
-               midh - 20:midh + 20,
-               midw - 40:midw + 40, 0].astype(np.uint8)
-        imgG = img[
-               midh - 20:midh + 20,
-               midw - 40:midw + 40, 1].astype(np.uint8)
-        imgB = img[
-               midh - 20:midh + 20,
-               midw - 40:midw + 40, 2].astype(np.uint8)
+        imgR = img[midh - 20:midh + 20, midw - 40:midw + 40, 0].astype(np.uint8)
+        imgG = img[midh - 20:midh + 20, midw - 40:midw + 40, 1].astype(np.uint8)
+        imgB = img[midh - 20:midh + 20, midw - 40:midw + 40, 2].astype(np.uint8)
         if imgR.shape[1] > 0 and imgG.shape[1] > 0 and imgB.shape[1] > 0:
             red1 = np.min(imgR)
             green1 = np.min(imgG)
@@ -417,41 +403,31 @@ class Vehicle:
             red2 = np.max(imgR)
             green2 = np.max(imgG)
             blue2 = np.max(imgB)
-            cv2.circle(img, (midw, midh), 22, (0, 0, 0), 2)
-            cv2.circle(img, (midw, midh), 24, (255, 255, 255), 2)
+            # cv2.circle(img, (midw, midh), 22, (0, 0, 0), 2)
+            # cv2.circle(img, (midw, midh), 24, (255, 255, 255), 2)
         else:
             # get a center patch of the image
             h, w = img.shape[:2]
             midh = int(h / 2)
             midw = int(w / 2)
-            imgR = img[
-                   midh - 20:midh + 20,
-                   midw - 40:midw + 40, 0].astype(np.uint8)
-            imgG = img[
-                   midh - 20:midh + 20,
-                   midw - 40:midw + 40, 1].astype(np.uint8)
-            imgB = img[
-                   midh - 20:midh + 20,
-                   midw - 40:midw + 40, 2].astype(np.uint8)
+            imgR = img[midh - 20:midh + 20, midw - 40:midw + 40, 0].astype(np.uint8)
+            imgG = img[midh - 20:midh + 20, midw - 40:midw + 40, 1].astype(np.uint8)
+            imgB = img[ midh - 20:midh + 20,  midw - 40:midw + 40, 2].astype(np.uint8)
             red1 = np.min(imgR)
             green1 = np.min(imgG)
             blue1 = np.min(imgB)
             red2 = np.max(imgR)
             green2 = np.max(imgG)
             blue2 = np.max(imgB)
-            cv2.circle(img, (midw, midh), 42, (0, 0, 0), 2)
-            cv2.circle(img, (midw, midh), 44, (255, 255, 255), 2)
+            # cv2.circle(img, (midw, midh), 42, (0, 0, 0), 2)
+            # cv2.circle(img, (midw, midh), 44, (255, 255, 255), 2)
 
         # set the vehicle's color
         rgb1 = (red1, green1, blue1)
-        rgbm = (
-            int((red1 + red2) / 2),
-            int((green1 + green2) / 2),
-            int((blue1 + blue2) / 2))
+        rgbm = (int((red1 + red2) / 2), int((green1 + green2) / 2), int((blue1 + blue2) / 2))
         rgb2 = (red2, green2, blue2)
         colorpalet = np.array([[rgb1, rgbm, rgb2]]).reshape(3, 1, 3)
-        vehicle_grays = \
-            cv2.cvtColor(colorpalet.astype(np.uint8), cv2.COLOR_RGB2GRAY)
+        vehicle_grays = cv2.cvtColor(colorpalet.astype(np.uint8), cv2.COLOR_RGB2GRAY)
 
         if vehicle_grays[2] > 200:
             self.vehicle_rgb = rgb2
@@ -517,10 +493,9 @@ class Vehicle:
     # Augmentation Special Effects -
     # default full closing circle sweep takes
     # about two seconds 52 frames - video is 26fps
-    def drawClosingCircle(
-            self, sweepLane, projectionFX, roadProjection,
-            color=[0, 0, 255], sweepedcolor=[128, 128, 255],
-            sweepThick=5, fullsweepFrame=20):
+    def drawClosingCircle(self, sweepLane, projectionFX, roadProjection,
+                          color=[0, 0, 255], sweepedcolor=[128, 128, 255],
+                          sweepThick=5, fullsweepFrame=20):
         if self.lane == sweepLane:
             ccolor = sweepedcolor
         else:
@@ -606,8 +581,12 @@ class Vehicle:
         cube2d = np.int32(cube2d).reshape(-1, 2)
         return cube3d, cube2d
 
-    # calculate perspective mask location from birds-eye view
-    def calculateMask(self, perspectiveImage):
+    def calculateMask_BEV(self, perspectiveImage):
+        """
+        alculate perspective mask location from birds-eye view
+        :param perspectiveImage:
+        :return:
+        """
         # defining a blank mask to start with
         mask = np.zeros_like(perspectiveImage)
 
@@ -666,6 +645,26 @@ class Vehicle:
         maskedImage = cv2.bitwise_and(perspectiveImage, mask)
         return vertices, maskedImage
 
+    def calculateMask(self, perspectiveImage, binary_mask):
+        mask = np.zeros_like(binary_mask)
+        mask[(binary_mask / 10).astype(int) == self.instances] = 1
+        mask_color = np.stack([mask] * 3, axis=2).astype(np.float32)
+        maskedImage = np.multiply(perspectiveImage, mask_color)
+        a = np.where(maskedImage != 0)
+        bbox = np.min(a[0]), np.max(a[0]), np.min(a[1]), np.max(a[1])
+
+        # Add green mask to selfie
+        mask_bg = np.stack([np.zeros_like(binary_mask), (1-mask) * 255, np.zeros_like(binary_mask)], axis=2).astype(np.float32)
+
+        selfie = (maskedImage+mask_bg)[bbox[0]:bbox[1], bbox[2]:bbox[3]]
+
+        # generate stats
+        if self.mode < 3:
+            self.sampleColor(selfie)
+        self.modeColor()
+
+        return selfie, maskedImage
+
     def draw3DBoundingCube(self, perspectiveImage):
         # draw bottom of cube
         cv2.drawContours(
@@ -683,9 +682,7 @@ class Vehicle:
     # Augmentation Special Effects
     # - default vehicle scanning sweep takes less
     # than a second 20 frames - video is 26fps
-    def drawScanning(
-            self, projectionFX, roadProjection,
-            color=[0, 0, 255], sweepThick=2, fullsweepFrame=26):
+    def drawScanning(self, projectionFX, roadProjection, color=[0, 0, 255], sweepThick=2, fullsweepFrame=26):
 
         if self.sweepDone and not self.scanDone:
             # calculate scanning height
@@ -740,10 +737,8 @@ class Vehicle:
             # self.maskedProfile = np.array(
             #     (self.selfieY, self.selfieX), dtype=np.uint8)
             # return an empty vehicle image
-            projected_carImage = np.array(
-                (self.selfieY, self.selfieX, 3), dtype=np.uint8)
-            cv2.rectangle(
-                projected_carImage, (5, 5), (635, 235), self.statusColor, 5)
+            projected_carImage = np.array((self.selfieY, self.selfieX, 3), dtype=np.uint8)
+            cv2.rectangle(projected_carImage, (5, 5), (635, 235), self.statusColor, 5)
             return projected_carImage
 
         # for debugging and diagnostics without vehicle tracker
@@ -810,20 +805,17 @@ class Vehicle:
         self.modeColor()
 
         # genrate mask from detected color
-        self.maskedProfile = cv2.cvtColor(
-            projected_carImage, cv2.COLOR_RGB2GRAY)
+        self.maskedProfile = cv2.cvtColor(projected_carImage, cv2.COLOR_RGB2GRAY)
         self.maskedProfile = self.maskedProfile.astype(np.uint8)
 
         # print("self.vehicle_gray", self.vehicle_gray)
         if self.vehicle_gray > 224:
-            self.maskedProfile[
-                (self.maskedProfile < (self.vehicle_gray - 48))] = 0
+            self.maskedProfile[(self.maskedProfile < (self.vehicle_gray - 48))] = 0
             self.maskedProfile[(self.maskedProfile > 0)] = 255
         elif self.vehicle_gray < 64:
             self.maskedProfile[(self.maskedProfile == 0)] = 128
             self.maskedProfile = 255 - self.maskedProfile
-            self.maskedProfile[
-                (self.maskedProfile < (255 - (self.vehicle_gray)))] = 0
+            self.maskedProfile[(self.maskedProfile < (255 - (self.vehicle_gray)))] = 0
             self.maskedProfile[(self.maskedProfile > 0)] = 255
         elif self.vehicle_gray > 192:
             self.maskedProfile[
@@ -832,32 +824,23 @@ class Vehicle:
                 (self.maskedProfile > (self.vehicle_gray + 24))] = 0
             self.maskedProfile[(self.maskedProfile > 0)] = 255
         elif self.vehicle_gray > 128:
-            self.maskedProfile[
-                (self.maskedProfile < (self.vehicle_gray - 24))] = 0
-            self.maskedProfile[
-                (self.maskedProfile > (self.vehicle_gray + 24))] = 0
+            self.maskedProfile[(self.maskedProfile < (self.vehicle_gray - 24))] = 0
+            self.maskedProfile[ (self.maskedProfile > (self.vehicle_gray + 24))] = 0
             self.maskedProfile[(self.maskedProfile > 0)] = 255
         elif self.vehicle_gray > 96:
-            self.maskedProfile[
-                (self.maskedProfile < (self.vehicle_gray - 24))] = 0
-            self.maskedProfile[
-                (self.maskedProfile > (self.vehicle_gray + 24))] = 0
+            self.maskedProfile[(self.maskedProfile < (self.vehicle_gray - 24))] = 0
+            self.maskedProfile[(self.maskedProfile > (self.vehicle_gray + 24))] = 0
             self.maskedProfile[(self.maskedProfile > 0)] = 255
         elif self.vehicle_gray > 64:
-            self.maskedProfile[
-                (self.maskedProfile < (self.vehicle_gray - 24))] = 0
-            self.maskedProfile[
-                (self.maskedProfile > (self.vehicle_gray + 24))] = 0
+            self.maskedProfile[(self.maskedProfile < (self.vehicle_gray - 24))] = 0
+            self.maskedProfile[(self.maskedProfile > (self.vehicle_gray + 24))] = 0
             self.maskedProfile[(self.maskedProfile > 0)] = 255
         elif self.vehicle_gray > 32:
-            self.maskedProfile[
-                (self.maskedProfile < (self.vehicle_gray - 16))] = 0
-            self.maskedProfile[
-                (self.maskedProfile > (self.vehicle_gray + 16))] = 0
+            self.maskedProfile[(self.maskedProfile < (self.vehicle_gray - 16))] = 0
+            self.maskedProfile[(self.maskedProfile > (self.vehicle_gray + 16))] = 0
             self.maskedProfile[(self.maskedProfile > 0)] = 255
         else:
-            self.maskedProfile[
-                (self.maskedProfile > (self.vehicle_gray + 16))] = 0
+            self.maskedProfile[(self.maskedProfile > (self.vehicle_gray + 16))] = 0
             self.maskedProfile[(self.maskedProfile > 0)] = 255
 
         try:
@@ -874,8 +857,7 @@ class Vehicle:
             self.vehicle_gray = self.gray
 
         # get the contour of the vehicle from the mask
-        img2, self.contours, hierarchy = cv2.findContours(
-            self.maskedProfile, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        img2, self.contours, hierarchy = cv2.findContours(self.maskedProfile, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         edges = np.copy(self.maskedProfile) * 0
 
         # draw a filled contour for our mask
@@ -889,23 +871,18 @@ class Vehicle:
         #     mask=self.maskedProfile)
 
         # draw the contours on top
-        cv2.drawContours(
-            projected_carImage, self.contours, -1, self.statusColor, 2)
+        cv2.drawContours(projected_carImage, self.contours, -1, self.statusColor, 2)
         vehicle_contour = np.copy(projected_carImage) * 0
-        cv2.drawContours(
-            vehicle_contour, self.contours, -1, self.statusColor, 2)
+        cv2.drawContours(vehicle_contour, self.contours, -1, self.statusColor, 2)
 
         # draw our tracking points
         # projected_carImage[:,0:50] = [128, 64, 64]
         # projected_carImage[:,self.selfieX-50:self.selfieX] = [128, 64, 64]
 
-        cv2.rectangle(
-            projected_carImage, (5, 5), (635, 235), self.statusColor, 5)
+        cv2.rectangle(projected_carImage, (5, 5), (635, 235), self.statusColor, 5)
 
         # unwarp the car mask
-        self.contourInPerspective, M = self.unwarp_vehicle_back(
-            vehicle_contour, dstVehicleCorners,
-            self.cube_intersect.astype(np.float32), self.projMgr.mtx)
+        self.contourInPerspective, M = self.unwarp_vehicle_back(vehicle_contour, dstVehicleCorners,self.cube_intersect.astype(np.float32), self.projMgr.mtx)
 
         # debugging masks...
         # newedge = np.dstack((edges, edges, edges))

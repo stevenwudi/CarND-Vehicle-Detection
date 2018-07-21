@@ -47,6 +47,7 @@ class VehicleDetection:
 
         # Using mask RCNN for vehicle detection
         self.maskRCNN = maskRCNN()
+        self.maskRCNN_threshold_for_vehicle = 0.8
 
     # Define a function to change the detector's threshold
     def set_threshold(self, new_threshold):
@@ -305,6 +306,59 @@ class VehicleDetection:
                     print(confidence[0])
                     if confidence[0] > self.threshold:
                         roadgrid.setFound(box)
+        return roadgrid
+
+    def detectVehiclesDNN(self, image):
+        """
+        This is a Deep Neural netowkr based vehicle detection
+        :param image:
+        :param roadgrid:
+        :return:
+        """
+        cls_boxes, cls_segms, prediction_row = self.maskRCNN.vehicleDetection(image)
+        binary_mask, scores, instance_id = self.maskRCNN.binary_mask(cls_boxes, cls_segms)
+        if not len(instance_id):
+            binary_mask = np.zeros_like(image)
+            scores = []
+            instance_id = []
+        return cls_boxes, cls_segms, binary_mask, scores, instance_id
+
+    def detectVehiclesRoadGrid(self, binary_mask, roadgrid):
+        mapping = roadgrid.getMapping()
+        mapping_keys = [n for n in mapping.keys()]
+        mapping_keys.sort()
+        for box in mapping_keys:
+            if not mapping[box]['occluded'] and not mapping[box]['found'] and mapping[box]['vehicle'] is None:
+                window = mapping[box]['window']
+                wimage = binary_mask[window[0][1]:window[1][1], window[0][0]:window[1][0]]
+                # For mask RCNN prediction: int(instance_count/10) is instance number
+                #confidence = np.mean(wimage - self.maskRCNN_vehicle_mask)
+                confidence = np.mean(wimage) % 1
+                # if confidence > 0.5:
+                #     print(confidence, instance_mask, box)
+                if confidence > self.maskRCNN_threshold_for_vehicle:
+                    instance_mask = int(wimage.max() / 10)
+                    print(confidence, instance_mask, box)
+                    roadgrid.setFound(box, instance_mask)
+        return roadgrid
+
+    def assignVehiclesRoadGrid(self, mask_all, roadgrid, instance_id):
+        mapping = roadgrid.getMapping()
+        mapping_keys = [n for n in mapping.keys()]
+        mapping_keys.sort()
+
+        for i_id in instance_id:
+            binary_mask = (mask_all %100 / 10).astype(int)==i_id
+            for box in mapping_keys:
+                if not mapping[box]['occluded'] and not mapping[box]['found'] and mapping[box]['vehicle'] is None:
+                    window = mapping[box]['window']
+                    wimage = binary_mask[window[0][1]:window[1][1], window[0][0]:window[1][0]]
+                    # For mask RCNN prediction: int(instance_count/10) is instance number
+                    confidence = np.mean(wimage)
+                    if confidence > self.maskRCNN_threshold_for_vehicle:
+                        print(confidence, i_id, box)
+                        roadgrid.setFound(box, i_id)
+                        break
         return roadgrid
 
     # Define a way for us to collect data from images and videos
