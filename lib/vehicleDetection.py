@@ -16,42 +16,24 @@ import matplotlib.pyplot as plt
 import numpy as np
 from lib.roadGrid import RoadGrid
 from skimage.feature import hog
-from sklearn.externals import joblib
 from lib.maskRCNN import maskRCNN
 
 
 # a class for wrapping our SVM trained HOG vehicle detector.
 class VehicleDetection:
     # initialize
-    def __init__(self, projectedX, projectedY, versionName=None,
-                 cspace='RGB', orient=9, pix_per_cell=8, cell_per_block=2,
-                 hog_channel=0, threshold=2.5,
-                 dataFileNamePattern="imgExt%03d.jpg"):
+    def __init__(self, projectedX, projectedY,
+                 maskRCNN_threshold_occupancy=0.5):
         self.start = time.strftime("%Y%m%d%H%M%S", time.gmtime())
         self.projectedX = projectedX
         self.projectedY = projectedY
-        self.versionName = versionName
-        self.cspace = cspace
-        self.hog_channel = hog_channel
-        if versionName is not None:
-            self.trained_model = './trained_models/' + versionName + '.pkl'
-            self.trained_scalar = './trained_models/scaler' + versionName + '.pkl'
-            self.svc = joblib.load(self.trained_model)
-        self.orient = orient
-        self.pix_per_cell = pix_per_cell
-        self.cell_per_block = cell_per_block
-        if self.trained_scalar is not None and self.versionName is not None:
-            self.X_scaler = joblib.load(self.trained_scalar)
-        self.threshold = threshold
-        self.dataFileNamePattern = dataFileNamePattern
-
         # Using mask RCNN for vehicle detection
         self.maskRCNN = maskRCNN()
-        self.maskRCNN_threshold_for_vehicle = 0.8
+        self.maskRCNN_threshold_occupancy = maskRCNN_threshold_occupancy
 
     # Define a function to change the detector's threshold
     def set_threshold(self, new_threshold):
-        self.threshold = new_threshold
+        self.maskRCNN_threshold_occupancy = new_threshold
 
     # Define a function to compute binned color features
     def bin_spatial(self, img, size=(32, 32)):
@@ -323,42 +305,23 @@ class VehicleDetection:
             instance_id = []
         return cls_boxes, cls_segms, binary_mask, scores, instance_id
 
-    def detectVehiclesRoadGrid(self, binary_mask, roadgrid):
-        mapping = roadgrid.getMapping()
-        mapping_keys = [n for n in mapping.keys()]
-        mapping_keys.sort()
-        for box in mapping_keys:
-            if not mapping[box]['occluded'] and not mapping[box]['found'] and mapping[box]['vehicle'] is None:
-                window = mapping[box]['window']
-                wimage = binary_mask[window[0][1]:window[1][1], window[0][0]:window[1][0]]
-                # For mask RCNN prediction: int(instance_count/10) is instance number
-                #confidence = np.mean(wimage - self.maskRCNN_vehicle_mask)
-                confidence = np.mean(wimage) % 1
-                # if confidence > 0.5:
-                #     print(confidence, instance_mask, box)
-                if confidence > self.maskRCNN_threshold_for_vehicle:
-                    instance_mask = int(wimage.max() / 10)
-                    print(confidence, instance_mask, box)
-                    roadgrid.setFound(box, instance_mask)
-        return roadgrid
-
     def assignVehiclesRoadGrid(self, mask_all, roadgrid, instance_id):
         mapping = roadgrid.getMapping()
         mapping_keys = [n for n in mapping.keys()]
         mapping_keys.sort()
 
         for i_id in instance_id:
-            binary_mask = (mask_all %100 / 10).astype(int)==i_id
+            binary_mask = (mask_all % 100 / 10).astype(int) == i_id
             for box in mapping_keys:
                 if not mapping[box]['occluded'] and not mapping[box]['found'] and mapping[box]['vehicle'] is None:
                     window = mapping[box]['window']
                     wimage = binary_mask[window[0][1]:window[1][1], window[0][0]:window[1][0]]
                     # For mask RCNN prediction: int(instance_count/10) is instance number
                     confidence = np.mean(wimage)
-                    if confidence > self.maskRCNN_threshold_for_vehicle:
+                    if confidence > self.maskRCNN_threshold_occupancy:
                         print(confidence, i_id, box)
-                        roadgrid.setFound(box, i_id)
-                        break
+                        roadgrid.setFound(box, i_id, confidence)
+                        # break
         return roadgrid
 
     # Define a way for us to collect data from images and videos

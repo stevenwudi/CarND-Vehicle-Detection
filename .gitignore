@@ -106,3 +106,4 @@ venv.bak/
 .idea/
 /data
 /test_videos
+/test_videos_out/images

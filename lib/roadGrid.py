@@ -58,9 +58,10 @@ class RoadGrid:
                 vehStr = '%d' % (vehIdx)
                 self.vehicle_list[vehStr] = box
 
-    def setFound(self, box, instance_mask=0):
+    def setFound(self, box, instance_mask=0, conf=0):
         self.mapping[box]['found'] = True
         self.mapping[box]['instance_mask'] = instance_mask
+        self.mapping[box]['conf'] = conf
         # print("from setFound...")
         self.calculateVoxelOcclusionAndObjectSeparation(box, forceIntoOne=True)
 

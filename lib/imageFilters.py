@@ -229,7 +229,10 @@ class ImageFilters:
         """
         # piece together images that we want to project
         img = np.zeros((self.y, self.x, 3), dtype=np.uint8)
-        img[self.mid:self.y, :, :] = np.dstack((self.curRoadEdge, self.curRoadEdge, self.curRoadEdge))
+        if not len(self.curRoadEdge.shape) == 3:
+            img[self.mid:self.y, :, :] = np.dstack((self.curRoadEdge, self.curRoadEdge, self.curRoadEdge))
+        else:
+            img[self.mid:self.y, :, :] = self.curRoadEdge
         return img
 
     # check image quality

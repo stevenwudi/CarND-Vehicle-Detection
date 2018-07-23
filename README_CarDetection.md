@@ -89,18 +89,15 @@ the trained network, we can find the network generalises really well for unseen 
 (Training images are collected from the busy streets of Beijing and the test images/videos are from
 American Highways).
 
-We 
 
-### MASKRCNN introduction
+### Mask-rCNN result
+As we can see, the pre-trained Mask-RCNN generalised quite well.
+So I will use the deep network approach instead.
 
 Test image 5 |vehicle scan projection   |projected_masks  |
  :-------------------------:                      |:-------------------------:            |         :-------------------------:                                             |
  ![](./output_images/car_detection_maskrcnn/test5.jpg) | ![](./output_images/car_detection_maskrcnn/vehicleScan.png)  |  ![](./output_images/car_detection_maskrcnn/projected_masks.png) |  
 
-
-
-
-## Video Pipeline
 
 
 # Future thoughts
@@ -112,3 +109,9 @@ I have experimented using FCN based network trained on Cityscape but the fail at
 shows that dense prediction is still a challenge for generalisation.([Robust Vision Challenge](http://www.robustvision.net/index.php) would
 be a good platform for further study). [Kitti](http://www.cvlibs.net/datasets/kitti/) also host lane finding challenge.
 Baidu [ApolloScape](http://apolloscape.auto/) dataset provide another alternatives. 
+
+* Car tracking and detection combined. 
+Currently due to the deadline constraint, the tracking pipeline didn't work quite well.
+In the coming week I will further implement the tracking pipeline.
+
+But in order to continue with term 2, I need to submit the project now.

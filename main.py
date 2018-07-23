@@ -9,13 +9,13 @@ from moviepy.editor import VideoFileClip
 from lib.diagManager import DiagManager
 from lib.roadManager import RoadManager
 from lib.cameraCal import CameraCal
-
+from matplotlib import pyplot as plt
 
 # process_road_image handles rendering a single image through the pipeline
-def process_road_image(img, roadMgr, diagMgr, scrType=0, debug=False, resized=False):
+def process_road_image(img, roadMgr, diagMgr, scrType=0):
     # Run the functions
-    roadMgr.findLanes(img, resized=resized)
-    roadMgr.findVehicles(resized=resized)
+    roadMgr.findLanes(img)
+    roadMgr.findVehicles()
 
     # debug/diagnostics requested
     if False:
@@ -44,24 +44,20 @@ def process_road_image(img, roadMgr, diagMgr, scrType=0, debug=False, resized=Fa
             diagScreen = diagMgr.textOverlay(diagScreen, offset=offset, color=color)
         result = diagScreen
     else:
-        if scrType & 8 == 8:
-            roadMgr.drawLaneStats()
+        # if scrType & 8 == 8:
+        #     roadMgr.drawLaneStats()
         result = roadMgr.final
+        #result = roadMgr.projMgr.curImgRoad
     return result
 
 
 # process_image handles rendering a single image through the pipeline
 # within the moviepy video rendering context
 def process_image(image):
+    result = process_road_image(image, roadMgr, diagMgr)
 
-    # for smaller videos - white.mp4 and yellow.mp4
-    if image is not None:
-        resized = False
-        sizey, sizex, ch = image.shape
-        if sizex != roadMgr.x or sizey != roadMgr.y:
-            resized = True
-            image = cv2.resize(image, (roadMgr.x, roadMgr.y), interpolation=cv2.INTER_AREA)
-    result = process_road_image(image, roadMgr, diagMgr, scrType=scrType, debug=debug, resized=resized)
+    im_name = './test_videos_out/images/' + '%06d.png' % (int(roadMgr.curFrame))
+    cv2.imwrite(im_name, cv2.cvtColor(result, cv2.COLOR_RGB2BGR))
     return result
 
 
@@ -89,8 +85,8 @@ if __name__ == "__main__":
     parser.add_argument('--scrType', type=int, default=0, help=diagHelp)
     parser.add_argument('--notext', action='store_true', default=False, help='do not render text overlay')
     parser.add_argument('--collect', action='store_true', default=False, help=collectHelp)
-    parser.add_argument('--infilename', type=str, default='./test_images/test5.jpg', help=inputHelp)
-    #parser.add_argument('--infilename', type=str, default='./test_videos/project_video.mp4', help=inputHelp)
+    #parser.add_argument('--infilename', type=str, default='./test_images/test6.jpg', help=inputHelp)
+    parser.add_argument('--infilename', type=str, default='./test_videos/project_video.mp4', help=inputHelp)
 
     args = parser.parse_args()
 
@@ -149,9 +145,6 @@ if __name__ == "__main__":
             debug = True
         if not args.notext:
             scrType = scrType | 8
-        if args.collect:
-            print("Will collect training data from %s..." % (args.infilename))
-            scrType = scrType | 16
 
         # initialization
         # load or perform camera calibrations
@@ -162,7 +155,7 @@ if __name__ == "__main__":
             camCal.setImageSize(image.shape)
 
         # initialize road manager and its managed pipeline components/modules
-        roadMgr = RoadManager(camCal, debug=debug, scrType=scrType)
+        roadMgr = RoadManager(camCal, debug=False, scrType=scrType)
 
         # initialize diag manager and its managed diagnostics components
         if debug:
@@ -181,8 +174,10 @@ if __name__ == "__main__":
         elif videoin is not None and videoout is not None:
             print("video processing %s..." % videoin)
             clip1 = VideoFileClip(videoin)
+            #clip1 = VideoFileClip(videoin).subclip(4, 51)  # Select the subclip 00:00 - 00:01
             video_clip = clip1.fl_image(process_image)
-            video_clip.write_videofile(videoout, audio=False)
+            video_clip.write_videofile(videoout,  codec='mpeg4', audio=False)
+
             print("done video processing %s..." % videoin)
     else:
         print("error detected.  exiting.")

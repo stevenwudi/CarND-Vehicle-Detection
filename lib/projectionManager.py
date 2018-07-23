@@ -548,10 +548,15 @@ class ProjectionManager:
                 cv2.circle(self.diag4, (int(self.curDstRoadCorners[3][0]), int(self.curDstRoadCorners[3][1])), 10,
                            (255, 64, 64), 10)
 
-    # function to project the edges into a plane
-    # this function is for when we are now at greater than 50% confidence in
-    # the lane lines identified.
     def project(self, imgftr, leftRightOffset=0, sameFrame=False):
+        """
+        function to project the edges into a plane.
+        this function is for when we are now at greater than 50% confidence in the lane lines identified.
+        :param imgftr:
+        :param leftRightOffset:
+        :param sameFrame:
+        :return:
+        """
         if not sameFrame:
             self.curFrame += 1
 
@@ -903,6 +908,8 @@ class ProjectionManager:
         poly_img = np.zeros_like(perspectiveImage)
         poly_lines = np.zeros_like(perspectiveImage)
         for i in range(1, len(imgpts_list)):
+            if imgpts_list[-i].min() < 0 or imgpts_list[-i-1].min() < 0:
+                continue
             # So the alpha range from 0.1 to 0.4
             for c_idx in range(3):
                 contours = np.array((imgpts_list[-i][c_idx % 4], imgpts_list[-i][c_idx % 4 + 1],

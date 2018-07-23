@@ -215,17 +215,18 @@ class Lane:
             self.lines[self.left].bottomProjectedY,
             self.lines[self.right].bottomProjectedY])
 
-    # function to mask lane line positions
-    # and do lane measurement calculations
     def findExistingLines(self, curImgFtr):
+        """
+        Function to mask lane line positions and do lane measurement calculations
+        :param curImgFtr:
+        :return:
+        """
         self.curImgFtr = curImgFtr
         self.curFrame += 1
 
         masked_edges = curImgFtr.getEdgeProjection()
         # print("masked_edges: ", masked_edges.shape)
         masked_edge = masked_edges[:, :, 1]
-        height = masked_edge.shape[0]
-        width = masked_edge.shape[1]
 
         # Left Lane Line Projection setup
         self.leftprojection = self.lines[self.left].applyLineMask(masked_edges)
@@ -235,8 +236,7 @@ class Lane:
         self.lines[self.left].fitpoly2()
 
         # Right Lane Line Projection setup
-        self.rightprojection = self.lines[
-            self.right].applyLineMask(masked_edges)
+        self.rightprojection = self.lines[self.right].applyLineMask(masked_edges)
         rightPoints = np.nonzero(self.rightprojection)
         self.lines[self.right].allX = rightPoints[1]
         self.lines[self.right].allY = rightPoints[0]
@@ -244,19 +244,16 @@ class Lane:
 
         # take and calculate some measurements
         self.distance = self.lines[self.right].pixelBasePos - self.lines[self.left].pixelBasePos
-        self.lines[self.left].radius_in_meters(
-            self.curImgFtr.throwDistance, self.distance)
+        self.lines[self.left].radius_in_meters(self.curImgFtr.throwDistance, self.distance)
         self.lines[self.left].meters_from_center_of_vehicle(self.distance)
-        self.lines[self.right].radius_in_meters(
-            self.curImgFtr.throwDistance, self.distance)
+        self.lines[self.right].radius_in_meters(self.curImgFtr.throwDistance, self.distance)
         self.lines[self.right].meters_from_center_of_vehicle(self.distance)
 
         leftTop = self.lines[self.left].getTopPoint()
         rightTop = self.lines[self.right].getTopPoint()
 
         # Attempt to move up the Lane lines if we missed some predictions
-        if self.leftLineLastTop is not None and \
-                        self.rightLineLastTop is not None:
+        if self.leftLineLastTop is not None and self.rightLineLastTop is not None:
 
             # If we are in the harder challenge, our visibility is obscured,
             # so only do this if we are certain that our visibility is good.
@@ -264,26 +261,20 @@ class Lane:
             if self.curImgFtr.visibility > -30:
                 # if either lines differs by greater than 50 pixel vertically
                 # we need to request the shorter line to go higher.
-                if abs(self.leftLineLastTop[1] -
-                               self.rightLineLastTop[1]) > 50:
+                if abs(self.leftLineLastTop[1] - self.rightLineLastTop[1]) > 50:
                     if self.leftLineLastTop[1] > self.rightLineLastTop[1]:
-                        self.lines[self.left].requestTopY(
-                            self.rightLineLastTop[1])
+                        self.lines[self.left].requestTopY(self.rightLineLastTop[1])
                     else:
-                        self.lines[self.right].requestTopY(
-                            self.leftLineLastTop[1])
+                        self.lines[self.right].requestTopY(self.leftLineLastTop[1])
 
-                # if our lane line has fallen to below our threshold, get it to
-                # come back up
+                # if our lane line has fallen to below our threshold, get it to come back up
                 if leftTop is not None and leftTop[1] > self.mid - 100:
                     self.lines[self.left].requestTopY(leftTop[1] - 10)
-                if leftTop is not None and \
-                                leftTop[1] > self.leftLineLastTop[1]:
+                if leftTop is not None and leftTop[1] > self.leftLineLastTop[1]:
                     self.lines[self.left].requestTopY(leftTop[1] - 10)
                 if rightTop is not None and rightTop[1] > self.mid - 100:
                     self.lines[self.right].requestTopY(rightTop[1] - 10)
-                if rightTop is not None and \
-                                rightTop[1] > self.rightLineLastTop[1]:
+                if rightTop is not None and rightTop[1] > self.rightLineLastTop[1]:
                     self.lines[self.right].requestTopY(rightTop[1] - 10)
 
             # visibility poor...
@@ -293,25 +284,20 @@ class Lane:
             elif self.curFrame > 30:
                 # if either lines differs by greater than 50 pixel vertically
                 # we need to request the shorter line to go higher.
-                if abs(self.leftLineLastTop[1] -
-                               self.rightLineLastTop[1]) > 50:
-                    if self.leftLineLastTop[1] > self.rightLineLastTop[1] and \
-                                    leftTop is not None:
+                if abs(self.leftLineLastTop[1] - self.rightLineLastTop[1]) > 50:
+                    if self.leftLineLastTop[1] > self.rightLineLastTop[1] and leftTop is not None:
                         self.lines[self.left].requestTopY(leftTop[1] - 10)
                     elif rightTop is not None:
                         self.lines[self.right].requestTopY(rightTop[1] - 10)
 
-                # if our lane line has fallen to below our threshold, get it to
-                # come back up
+                # if our lane line has fallen to below our threshold, get it to come back up
                 if leftTop is not None and leftTop[1] > self.mid + 100:
                     self.lines[self.left].requestTopY(leftTop[1] - 10)
-                if leftTop is not None and \
-                                leftTop[1] > self.leftLineLastTop[1]:
+                if leftTop is not None and leftTop[1] > self.leftLineLastTop[1]:
                     self.lines[self.left].requestTopY(leftTop[1] - 10)
                 if rightTop is not None and rightTop[1] > self.mid + 100:
                     self.lines[self.right].requestTopY(rightTop[1] - 10)
-                if rightTop is not None and \
-                                rightTop[1] > self.rightLineLastTop[1]:
+                if rightTop is not None and rightTop[1] > self.rightLineLastTop[1]:
                     self.lines[self.right].requestTopY(rightTop[1] - 10)
 
         # Update Stats and Top points for next frame.

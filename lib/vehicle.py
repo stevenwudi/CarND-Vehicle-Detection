@@ -23,7 +23,8 @@ import webcolors
 
 class Vehicle:
     # initialization
-    def __init__(self, ID, lanes, projMgr, roadGrid, objIdx, perspectiveImage, mainLaneIdx, binary_mask=None):
+    def __init__(self, ID, lanes, projMgr, roadGrid, objIdx, perspectiveImage, mainLaneIdx,
+                 binary_mask=None, instance_id=0):
         self.vehIdx = ID
         self.vehStr = '%d' % (ID)
         self.projMgr = projMgr
@@ -42,6 +43,8 @@ class Vehicle:
         # closing circle sweep
         self.sweepDone = False
         self.sweepDeltaFrame = 0
+        self.fullsweepFrame = 2  # default is 20
+        self.fullScanFrame = 3   # defautl is 26
         # scanning sweep
         self.scanDone = False
         self.scanDeltaFrame = 0
@@ -63,59 +66,6 @@ class Vehicle:
         self.z = projMgr.z * 1.2
 
         # initial windows during detection
-        self.lastObjList = roadGrid.getObjectList(objIdx)
-        self.initialWindows = roadGrid.getObjectListWindows(objIdx)
-
-        # windows
-        self.windows = roadGrid.getFoundAndNotOccludedWindowsInObject(objIdx)
-
-        # boxes
-        self.boxes = roadGrid.getFoundAndNotOccludedBoxesInObject(objIdx)
-
-        # instance
-        self.instances = roadGrid.getFoundAndNotOccludedInstanceInObject(objIdx)
-
-        # lane and location in the voxel grid the vehicle is on
-        if len(self.boxes) > 0:
-            self.lane, self.yidx = roadGrid.gridCoordinates(self.boxes[0])
-            self.box = self.boxes[0]
-            self.xcenter, self.ycenter = self.windowCenter(roadGrid.getBoxWindow(self.box))
-
-        else:
-            self.lane = None
-            self.yidx = None
-            self.box = None
-            self.initialMaskVector = None
-
-        # was the vehicle detected in the last iteration?
-        self.detected = False
-
-        # percentage confidence
-        self.detectConfidence = 0.0
-        self.detectConfidence_base = 0.0
-        self.initFrames = 0
-        self.graceFrames = 10
-        self.exitFrames = 0
-        self.traveled = False
-
-        # contour of vehicle
-        self.contourInPerspective = None
-
-        # mask of vehicle
-        self.maskedProfile = None
-        self.vehicleHeatMap = np.zeros((self.selfieY, self.selfieX), dtype=np.float32)
-        self.vehicleMaskInPerspective = None
-
-        # vehicle status and statistics
-        self.vehicleClassified = False
-        self.color = (0, 0, 0)
-        self.colorpoints = 0
-        self.webColorName = None
-        self.statusColor = None
-        self.status = "Not Found"
-        self.vehicleInLane = None
-        self.previousboxes = []
-
         # could be one of:
         # DetectionPhase:
         #     0:Initialized
@@ -128,59 +78,87 @@ class Vehicle:
         #     6:VehicleLeaving
         #     7:VehicleLosted
         self.mode = 0
-        self.binary_mask = binary_mask
-        # array of 3d and 2d points for bounding cube
-        # do the calculations for the 2d and 3d bounding box
-        self.cube3d, self.cube2d = self.calculateRoughBoundingCubes(self.windows)
+
+        # No tracking
+        self.instance_id = instance_id
+        if False:
+            self.lastObjList = roadGrid.getObjectList(objIdx)
+            self.initialWindows = roadGrid.getObjectListWindows(objIdx)
+
+            # windows
+            self.windows = roadGrid.getFoundAndNotOccludedWindowsInObject(objIdx)
+
+            # boxes
+            self.boxes = roadGrid.getFoundAndNotOccludedBoxesInObject(objIdx)
+
+            # instance
+            self.instances = roadGrid.getFoundAndNotOccludedInstanceInObject(objIdx)
+
+            # lane and location in the voxel grid the vehicle is on
+            if len(self.boxes) > 0:
+                self.lane, self.yidx = roadGrid.gridCoordinates(self.boxes[0])
+                self.box = self.boxes[0]
+                self.xcenter, self.ycenter = self.windowCenter(roadGrid.getBoxWindow(self.box))
+
+            else:
+                self.lane = None
+                self.yidx = None
+                self.box = None
+                self.initialMaskVector = None
+
+            # was the vehicle detected in the last iteration?
+            self.detected = False
+
+            # percentage confidence
+            self.detectConfidence = 0.0
+            self.detectOccupancy = []
+            self.initFrames = 0
+            self.graceFrames = 10
+            self.exitFrames = 0
+            self.traveled = False
+
+            # contour of vehicle
+            self.contourInPerspective = None
+
+            # mask of vehicle
+            self.maskedProfile = None
+            self.vehicleHeatMap = np.zeros((self.selfieY, self.selfieX), dtype=np.float32)
+            self.vehicleMaskInPerspective = None
+
+            # vehicle status and statistics
+            self.vehicleClassified = False
+            self.color = (0, 0, 0)
+            self.colorpoints = 0
+            self.webColorName = None
+            self.statusColor = None
+            self.status = "Not Found"
+            self.vehicleInLane = None
+            self.previousboxes = []
+
+
+            self.binary_mask = binary_mask
+            # array of 3d and 2d points for bounding cube
+            # do the calculations for the 2d and 3d bounding box
+            self.cube3d, self.cube2d = self.calculateRoughBoundingCubes(self.windows)
 
         # create the rough masked image for projection.
         self.selfie, self.maskedImage = self.calculateMask(np.copy(perspectiveImage), binary_mask)
 
-        # project the image for verification
-        #self.selfie = self.takeProfileSelfie(self.maskedImage)
-
     # update vehicle status before tracking.
-    def updateVehicle(self, roadGrid, perspectiveImage, x=None, y=None, lane=None):
+    def updateVehicle(self, roadGrid, perspectiveImage, binary_mask,):
         self.roadGrid = roadGrid
-        if lane is not None:
-            self.lane = lane
 
-        # lane and location in the voxel grid the vehicle is on
-        if x is not None and y is not None and self.lane is not None:
-            self.ycenter = y
-            self.xcenter = self.lanes[self.lane].calculateXCenter(y)
-            self.window = \
-                ((self.xcenter - self.deltaX, self.ycenter - self.deltaY),
-                 (self.xcenter + self.deltaX, self.ycenter + self.deltaY))
-            self.windows = [self.window]
-            if lane is not None:
-                self.lane = lane
-            if self.lane is not None:
-                yidx = self.roadGrid.calculateObjectPosition(
-                    self.lane, self.ycenter)
-                if yidx > 0:
-                    self.yidx = yidx
-            self.box = self.roadGrid.getKey(self.lane, self.yidx)
-            self.boxes = [self.box]
-            self.roadGrid.insertTrackedObject(
-                self.lane, self.yidx, self.window, self.vehIdx, tracking=True)
+        if 2 < self.mode < 7:
+            if self.vehStr in self.roadGrid.vehicle_list:
+                self.box = self.roadGrid.vehicle_list[self.vehStr]
+            else:
+                self.roadGrid.vehicle_list[self.vehStr] = self.box
 
-        elif self.mode > 2 and self.mode < 7:
-            # for testing without tracking.
-            # self.ycenter -= 0.5
-            self.xcenter = self.lanes[self.lane].calculateXCenter(self.ycenter)
-            self.window = \
-                ((self.xcenter - self.deltaX, self.ycenter - self.deltaY),
-                 (self.xcenter + self.deltaX, self.ycenter + self.deltaY))
-            self.windows = [self.window]
-            if lane is not None:
-                self.lane = lane
-            if self.lane is not None:
-                yidx = self.roadGrid.calculateObjectPosition(
-                    self.lane, self.ycenter)
-                if yidx > 0:
-                    self.yidx = yidx
-            newbox = self.roadGrid.getKey(self.lane, self.yidx)
+                # windows
+            self.windows = self.roadGrid.getFoundAndNotOccludedWindowsInVehicle(self.vehIdx)
+
+            # boxes
+            self.boxes = self.roadGrid.getFoundAndNotOccludedBoxesInVehicle(self.vehIdx)
 
             # save last ten voxels for voxel trigger subpression
             if newbox != self.box:
@@ -190,33 +168,25 @@ class Vehicle:
             self.boxes = [self.box]
             for oldbox in self.previousboxes:
                 self.roadGrid.setOccluded(oldbox)
-            self.roadGrid.insertTrackedObject(
-                self.lane, self.yidx, self.window, self.vehIdx, tracking=True)
+            self.roadGrid.insertTrackedObject(self.lane, self.yidx, self.window, self.vehIdx, tracking=True)
 
         else:
             # initial windows during detection
-            # print("self.roadGrid.vehicle_list",
-            #       self.vehStr, self.roadGrid.vehicle_list)
+            # print("self.roadGrid.vehicle_list", self.vehStr, self.roadGrid.vehicle_list)
             if self.vehStr in self.roadGrid.vehicle_list:
                 self.box = self.roadGrid.vehicle_list[self.vehStr]
             else:
                 self.roadGrid.vehicle_list[self.vehStr] = self.box
 
             # windows
-            self.windows = \
-                self.roadGrid.getFoundAndNotOccludedWindowsInVehicle(
-                    self.vehIdx)
+            self.windows = self.roadGrid.getFoundAndNotOccludedWindowsInVehicle(self.vehIdx)
 
             # boxes
-            self.boxes = \
-                self.roadGrid.getFoundAndNotOccludedBoxesInVehicle(
-                    self.vehIdx)
+            self.boxes = self.roadGrid.getFoundAndNotOccludedBoxesInVehicle(self.vehIdx)
 
             if len(self.boxes) > 0:
-                self.lane, self.yidx = \
-                    self.roadGrid.gridCoordinates(self.box)
-                self.xcenter, self.ycenter = self.windowCenter(
-                    self.roadGrid.getBoxWindow(self.box))
+                self.lane, self.yidx = self.roadGrid.gridCoordinates(self.box)
+                self.xcenter, self.ycenter = self.windowCenter(self.roadGrid.getBoxWindow(self.box))
 
         # was the vehicle detected in the last iteration?
         self.detected = True
@@ -227,14 +197,11 @@ class Vehicle:
 
         # array of 3d and 2d points for bounding cube
         # do the calculations for the 2d and 3d bounding box
-        self.cube3d, self.cube2d = \
-            self.calculateRoughBoundingCubes(self.windows)
+        self.cube3d, self.cube2d = self.calculateRoughBoundingCubes(self.windows)
 
         # create the rough masked image for projection.
-        self.maskVertices, self.maskedImage = self.calculateMask(np.copy(perspectiveImage))
+        self.selfie, self.maskedImage = self.calculateMask(np.copy(perspectiveImage), binary_mask)
 
-        # project the image for verification
-        self.selfie = self.takeProfileSelfie(self.maskedImage)
         return self.roadGrid
 
     # classify the vehicle by its main color components
@@ -361,8 +328,12 @@ class Vehicle:
         # warped = gray
         return warped, self.dst2srcM
 
-    # function to find center of projection
     def findCenter(self, masked_projection):
+        """
+        # function to find center of projection
+        :param masked_projection:
+        :return:
+        """
         try:
             points = np.nonzero(masked_projection)
             x = int(np.average(points[1]))
@@ -493,36 +464,27 @@ class Vehicle:
     # Augmentation Special Effects -
     # default full closing circle sweep takes
     # about two seconds 52 frames - video is 26fps
-    def drawClosingCircle(self, sweepLane, projectionFX, roadProjection,
-                          color=[0, 0, 255], sweepedcolor=[128, 128, 255],
-                          sweepThick=5, fullsweepFrame=20):
+    def drawClosingCircle(self, sweepLane, projectionFX, roadProjection, color=(0, 0, 255), sweepedcolor=(128, 128, 255)):
         if self.lane == sweepLane:
             ccolor = sweepedcolor
         else:
             ccolor = color
         if not self.sweepDone:
             # calculate sweep radius
-            radius = (fullsweepFrame -
-                      (self.sweepDeltaFrame % fullsweepFrame)) * 10
+            radius = (self.fullsweepFrame - (self.sweepDeltaFrame % self.fullsweepFrame)) * 10
             self.sweepDeltaFrame += 1
 
             # closingCircle sweep
-            cv2.circle(
-                projectionFX, (int(self.xcenter), int(self.ycenter)),
-                radius, ccolor, 10)
-            cv2.circle(
-                roadProjection, (int(self.xcenter), int(self.ycenter)),
-                radius, ccolor, 10)
+            cv2.circle(projectionFX, (int(self.xcenter), int(self.ycenter)), radius, ccolor, 10)
+            cv2.circle(roadProjection, (int(self.xcenter), int(self.ycenter)), radius, ccolor, 10)
 
-            if self.sweepDeltaFrame == fullsweepFrame:
+            if self.sweepDeltaFrame == self.fullsweepFrame:
                 self.sweepDone = True
         else:
             if self.mode < 2:
                 self.mode = 2
             radius = self.deltaX * 2
-            cv2.circle(
-                roadProjection, (int(self.xcenter), int(self.ycenter)),
-                radius, ccolor, 10)
+            cv2.circle(roadProjection, (int(self.xcenter), int(self.ycenter)), radius, ccolor, 10)
 
     def calculateRoughBoundingCubes(self, windows):
 
@@ -647,7 +609,7 @@ class Vehicle:
 
     def calculateMask(self, perspectiveImage, binary_mask):
         mask = np.zeros_like(binary_mask)
-        mask[(binary_mask / 10).astype(int) == self.instances] = 1
+        mask[(binary_mask / 10).astype(int) == self.instance_id] = 1
         mask_color = np.stack([mask] * 3, axis=2).astype(np.float32)
         maskedImage = np.multiply(perspectiveImage, mask_color)
         a = np.where(maskedImage != 0)
@@ -682,7 +644,7 @@ class Vehicle:
     # Augmentation Special Effects
     # - default vehicle scanning sweep takes less
     # than a second 20 frames - video is 26fps
-    def drawScanning(self, projectionFX, roadProjection, color=[0, 0, 255], sweepThick=2, fullsweepFrame=26):
+    def drawScanning(self, projectionFX, roadProjection):
 
         if self.sweepDone and not self.scanDone:
             # calculate scanning height
@@ -697,28 +659,19 @@ class Vehicle:
                  [window[1][0], window[0][1], height + 1],
                  [window[1][0], window[1][1], height + 1],
                  [window[0][0], window[1][1], height + 1]])
-            cube = self.projMgr.projectPoints(
-                be_cube.reshape(-1, 3))
+            cube = self.projMgr.projectPoints(be_cube.reshape(-1, 3))
             imgpts = np.int32(cube).reshape(-1, 2)
 
             # draw bottom of cube
-            cv2.drawContours(
-                projectionFX, [imgpts[:4]],
-                -1, (0, 0, 255), 3)
-            cv2.drawContours(
-                roadProjection, [imgpts[:4]],
-                -1, (0, 0, 255), 3)
+            cv2.drawContours(projectionFX, [imgpts[:4]], -1, (0, 0, 255), 3)
+            cv2.drawContours(roadProjection, [imgpts[:4]], -1, (0, 0, 255), 3)
             # draw top of cube
-            cv2.drawContours(
-                projectionFX, [imgpts[4:]],
-                -1, (128, 128, 255), 3)
-            cv2.drawContours(
-                roadProjection, [imgpts[4:]],
-                -1, (128, 128, 255), 3)
+            cv2.drawContours(projectionFX, [imgpts[4:]], -1, (128, 128, 255), 3)
+            cv2.drawContours(roadProjection, [imgpts[4:]], -1, (128, 128, 255), 3)
 
             # check if done.
             self.scanDeltaFrame += 1
-            if height > fullsweepFrame:
+            if height > self.fullScanFrame:
                 self.scanDone = True
                 if self.mode < 3:
                     self.mode = 3

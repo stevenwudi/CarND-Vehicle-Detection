@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 
+
 class Line:
     """
     A class to receive the characteristics of each line detection
@@ -408,10 +409,14 @@ class Line:
             # create the accumulator
             self.bestFit = self.currentFit
 
-    # Fit a (default=second order) polynomial to lane line
-    # This version assumes that a manual fit was already done and is using
-    # the previously generated poly to fit the current line in the new frame
     def fitpoly2(self, degree=2):
+        """
+        Fit a (default=second order) polynomial to lane line.
+        This version assumes that a manual fit was already done and is using
+        the previously generated poly to fit the current line in the new frame
+        :param degree:
+        :return:
+        """
         if len(self.allY) > 50:
             self.currentFit = np.polyfit(self.allY, self.allX, degree)
 

@@ -6,6 +6,7 @@ Handles vehicle contour calculations and masking.
 """
 
 import numpy as np
+from matplotlib import pyplot as plt
 
 
 class VehicleTracking:
@@ -18,65 +19,54 @@ class VehicleTracking:
         self.projectedY = projectedY
         self.lanes = lanes
 
-    def isVehicleThere(
-            self, perspectiveImage, roadGrid, mainLaneIdx, vehicles, vehIdx):
-        # something is wrong - we should not have a vehicle in this state
-        # with a maskedProfile that is not there!
-        # reject the vehicle
+    def isVehicleThere(self, perspectiveImage, roadGrid, mainLaneIdx, vehicles, vehIdx, scores):
+        """
+        Check where vehicle is still there.
+        :param perspectiveImage:
+        :param roadGrid:
+        :param mainLaneIdx:
+        :param vehicles:
+        :param vehIdx:
+        :param scores:
+        :return:
+        """
         if vehicles[vehIdx] is None:
-            # print("rejecting ", vehIdx, "has has no entry in vehicles array")
+            print("rejecting ", vehIdx, "has has no entry in vehicles array")
             return False
 
-        if vehicles[vehIdx].maskedProfile is None:
-            # print("rejecting ", vehIdx, "has no maskedProfile")
+        if vehicles[vehIdx].selfie is None:
+            print("rejecting ", vehIdx, "has no selfie")
             return False
 
-        masked_vehicle = vehicles[vehIdx].maskedProfile
-        vehicle_points = len(np.nonzero(masked_vehicle)[0])
+        masked_vehicle = vehicles[vehIdx].selfie
+        confidence_current = scores[vehicles[vehIdx].instances - 1]  # instance start from 1
+        occupancy_rate = roadGrid.mapping[vehicles[vehIdx].box]['conf']
         midw, midh = vehicles[vehIdx].findCenter(masked_vehicle)
         # print("mode: ", vehicles[vehIdx].mode, " tracking:", vehIdx)
 
         # initialization?
         if vehicles[vehIdx].mode < 3:
-
             # collect points counts
-            vehicles[vehIdx].detectConfidence_base += vehicle_points
+            vehicles[vehIdx].detectOccupancy.append(occupancy_rate)
             vehicles[vehIdx].initFrames += 1
 
             # calculate running confidence for quick elimination
             # during peer scan pruning
-            vehicles[vehIdx].confidence = \
-                vehicle_points / (
-                    vehicles[vehIdx].detectConfidence_base /
-                    vehicles[vehIdx].initFrames)
-
-            # merge masks into heatmaps
-            if masked_vehicle is not None:
-                vehicles[vehIdx].vehicleHeatMap = \
-                    vehicles[vehIdx].projMgr.curImgFtr.miximg(
-                        vehicles[vehIdx].vehicleHeatMap,
-                        masked_vehicle, 0.5, 0.1)
-
-            # return true until we get out of the scanning phase
-            # print(
-            #     "mode: ", vehicles[vehIdx].mode, " tracking:", vehIdx,
-            #     "confidence base: ", vehicles[vehIdx].detectConfidence_base,
-            #     "current confidence:", vehicles[vehIdx].confidence)
+            vehicles[vehIdx].confidence = np.mean(np.array(vehicles[vehIdx].detectOccupancy))
             return True
 
         # scanning done - need to set confidence and start tracking.
         # if pasted threshold - make sure we actually have a confiremd vehicle!
         elif vehicles[vehIdx].mode == 3:
-            vehicles[vehIdx].detectConfidence_base /= \
-                vehicles[vehIdx].initFrames
+            vehicles[vehIdx].detectConfidence_base /= vehicles[vehIdx].initFrames
             # print(
             #     "mode: ", vehicles[vehIdx].mode, " tracking:", vehIdx,
             #     "confidence base: ", vehicles[vehIdx].detectConfidence_base,
             #     "current confidence:", vehicles[vehIdx].confidence)
-            if vehicles[vehIdx].detectConfidence_base > 100:
+            if vehicles[vehIdx].detectConfidence_base > 0.9:
                 # calculate confident
-                vehicles[vehIdx].confidence = \
-                    vehicle_points / vehicles[vehIdx].detectConfidence_base
+                # vehicles[vehIdx].confidence = \
+                #     vehicle_points / vehicles[vehIdx].detectConfidence_base
                 if vehicles[vehIdx].confidence > 0.5:
                     # set found
                     vehicles[vehIdx].detected = True
@@ -316,10 +306,7 @@ class VehicleTracking:
 
         # unknown state - return False
         else:
-            # print("unknown mode: ", vehicles[vehIdx].mode,
-            #       " tracking:", vehIdx)
+            print("unknown mode: ", vehicles[vehIdx].mode, " tracking:", vehIdx)
             return False
 
-        # fell out - default False
-        # print("fellout mode: ", vehicles[vehIdx].mode, " tracking:", vehIdx)
-        return False
+
