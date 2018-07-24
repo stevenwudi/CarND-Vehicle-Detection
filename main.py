@@ -4,12 +4,12 @@ import os
 import re
 import sys
 import cv2
-from moviepy.editor import VideoFileClip
 
 from lib.diagManager import DiagManager
 from lib.roadManager import RoadManager
 from lib.cameraCal import CameraCal
 from matplotlib import pyplot as plt
+
 
 # process_road_image handles rendering a single image through the pipeline
 def process_road_image(img, roadMgr, diagMgr, scrType=0):
@@ -55,8 +55,8 @@ def process_road_image(img, roadMgr, diagMgr, scrType=0):
 # within the moviepy video rendering context
 def process_image(image):
     result = process_road_image(image, roadMgr, diagMgr)
-
-    im_name = './test_videos_out/images/' + '%06d.png' % (int(roadMgr.curFrame))
+    current_frame = (int(roadMgr.curFrame)+startFrame)
+    im_name = './test_videos_out/images/' + '%06d.png' % current_frame
     cv2.imwrite(im_name, cv2.cvtColor(result, cv2.COLOR_RGB2BGR))
     return result
 
@@ -68,13 +68,13 @@ if __name__ == "__main__":
     global diagMgr
     global debug
     global scrType
+    global startFrame
 
     # initialize argparse to parse the CLI
     usage = 'python %(prog)s [options] infilename outfilename'
-    desc = 'DIYJAC\'s Udacity SDC Project 5: Vehicle Detection and Tracking'
+    desc = 'DiWu\'s Udacity SDC Project 5: Vehicle Detection and Tracking'
     diagHelp = 'display diagnostics: [0=off], 1=filter, 2=proj 3=full '
     diagHelp += '4=projHD,complete 5=projHD,sentinal'
-    collectHelp = 'collect 64x64 birds-eye view images for HOG training'
     defaultInput = 'project_video.mp4'
     inputHelp = 'input image or video file to process'
     defaultOutput = 'project_video_out.mp4'
@@ -84,7 +84,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='main.py', usage=usage, description=desc)
     parser.add_argument('--scrType', type=int, default=0, help=diagHelp)
     parser.add_argument('--notext', action='store_true', default=False, help='do not render text overlay')
-    parser.add_argument('--collect', action='store_true', default=False, help=collectHelp)
     #parser.add_argument('--infilename', type=str, default='./test_images/test6.jpg', help=inputHelp)
     parser.add_argument('--infilename', type=str, default='./test_videos/project_video.mp4', help=inputHelp)
 
@@ -102,7 +101,6 @@ if __name__ == "__main__":
     imagepattern = re.compile("^.+\.(jpg|jpeg|JPG|png|PNG)$")
     image = None
     videoin = None
-    valid = False
 
     # set up pipeline processing options
     pleaseCheck = "Please check and try again."
@@ -140,12 +138,6 @@ if __name__ == "__main__":
 
     # set up diagnostic pipeline options if requested
     if valid:
-        scrType = args.scrType
-        if (scrType & 7) > 0:
-            debug = True
-        if not args.notext:
-            scrType = scrType | 8
-
         # initialization
         # load or perform camera calibrations
         camCal = CameraCal('camera_cal', 'camera_cal/calibrationdata.p')
@@ -155,13 +147,10 @@ if __name__ == "__main__":
             camCal.setImageSize(image.shape)
 
         # initialize road manager and its managed pipeline components/modules
-        roadMgr = RoadManager(camCal, debug=False, scrType=scrType)
+        roadMgr = RoadManager(camCal)
 
         # initialize diag manager and its managed diagnostics components
-        if debug:
-            diagMgr = DiagManager(roadMgr)
-        else:
-            diagMgr = None
+        diagMgr = DiagManager(roadMgr)
 
         # Image only?
         if image is not None:
@@ -173,11 +162,17 @@ if __name__ == "__main__":
         # Full video pipeline
         elif videoin is not None and videoout is not None:
             print("video processing %s..." % videoin)
-            clip1 = VideoFileClip(videoin)
-            #clip1 = VideoFileClip(videoin).subclip(4, 51)  # Select the subclip 00:00 - 00:01
-            video_clip = clip1.fl_image(process_image)
-            video_clip.write_videofile(videoout,  codec='mpeg4', audio=False)
-
+            cap = cv2.VideoCapture(videoin)
+            # Set the start frame number,
+            # see: https://stackoverflow.com/questions/11420748/setting-camera-parameters-in-opencv-python
+            startFrame = 200
+            cap.set(1, startFrame)
+            while cap.isOpened():
+                ret, frame = cap.read()
+                image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                process_image(image)
+            cap.release()
+            cv2.destroyAllWindows()
             print("done video processing %s..." % videoin)
     else:
         print("error detected.  exiting.")
